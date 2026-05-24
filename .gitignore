@@ -1,7 +1,6 @@
 .gradle/
 build/
-**/build/
+out/
 .idea/
 *.iml
-out/
-run/
+hs_err*

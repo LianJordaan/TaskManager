@@ -1,33 +1,64 @@
 plugins {
-    id "architectury-plugin" version "${architectury_plugin_version}"
-    id "dev.architectury.loom" version "${loom_version}" apply false
+    id 'java'
+    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+    id 'maven-publish'
 }
 
-architectury {
-    minecraft = minecraft_version
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
 }
 
-subprojects {
-    apply plugin: "dev.architectury.loom"
+repositories {
+    mavenCentral()
+}
 
-    loom {
-        silentMojangMappingsLicense()
+loom {
+    splitEnvironmentSourceSets()
+
+    mods {
+        taskmanager {
+            sourceSet sourceSets.main
+        }
     }
+}
 
-    dependencies {
-        minecraft "com.mojang:minecraft:${minecraft_version}"
-        mappings loom.officialMojangMappings()
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+processResources {
+    def version = project.version
+    inputs.property 'version', version
+
+    filesMatching('fabric.mod.json') {
+        expand 'version': version
     }
 }
 
-allprojects {
-    group = maven_group
-    version = mod_version
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = 'UTF-8'
+    it.options.release = 17
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+publishing {
+    publications {
+        create('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
 
     repositories {
-        maven { url "https://maven.architectury.dev/" }
-        maven { url "https://maven.fabricmc.net/" }
-        maven { url "https://maven.minecraftforge.net/" }
-        mavenCentral()
     }
 }
