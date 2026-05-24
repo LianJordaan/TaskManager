@@ -1,0 +1,35 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All Rights Reserved"
+
+[[mods]]
+modId="taskmanager"
+version="${version}"
+displayName="TaskManager"
+authors="LianJordaan"
+description='''
+Client-side in-game task list and overlays.
+'''
+
+displayTest="IGNORE_ALL_VERSION"
+
+[[dependencies.taskmanager]]
+modId="forge"
+mandatory=true
+versionRange="[47,)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.taskmanager]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.taskmanager]]
+modId="architectury"
+mandatory=true
+versionRange="[9.2.14,)"
+ordering="AFTER"
+side="CLIENT"
