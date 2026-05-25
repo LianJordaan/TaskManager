@@ -30,6 +30,7 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
     apply plugin: 'maven-publish'
 
     def mc = rootProject.versionMatrix[project.name]
+    def modernUiVersions = ['1.21.9', '1.21.10', '1.21.11'] as Set
     def modBuildVersion = "${rootProject.mod_version}+mc${mc.minecraft}"
 
     version = rootProject.mod_version
@@ -45,14 +46,22 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
 
     sourceSets {
         main {
-            def compatJavaDir = mc.minecraft.startsWith('1.20')
-                ? rootProject.file('src/compat_1_20/java')
-                : rootProject.file('src/compat_1_21/java')
-            java.setSrcDirs([
-                rootProject.file('src/main/java'),
-                compatJavaDir,
-                project.file('src/main/java')
-            ])
+            def compatJavaDirs = [rootProject.file('src/main/java')]
+
+            if (mc.minecraft == '1.20.1') {
+                compatJavaDirs += rootProject.file('src/compat_1_20/java')
+            } else if (modernUiVersions.contains(mc.minecraft)) {
+                compatJavaDirs += rootProject.file('src/compat_1_21/java')
+            } else {
+                compatJavaDirs += rootProject.file('src/compat_legacy_4arg/java')
+                compatJavaDirs += rootProject.file('src/compat_legacy_keymap/java')
+                compatJavaDirs += mc.minecraft.startsWith('1.21')
+                    ? rootProject.file('src/compat_hud_delta/java')
+                    : rootProject.file('src/compat_hud_legacy/java')
+            }
+
+            compatJavaDirs += project.file('src/main/java')
+            java.setSrcDirs(compatJavaDirs)
             resources.setSrcDirs([
                 project.file('src/main/resources'),
                 rootProject.file('src/main/resources')
