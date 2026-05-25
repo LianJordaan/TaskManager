@@ -50,6 +50,13 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
         this.editable = editable;
     }
 
+    public void setBounds(int x, int y, int width, int height) {
+        setX(x);
+        setY(y);
+        this.width = width;
+        this.height = height;
+    }
+
     public void insertSnippet(String snippet, int cursorBacktrack) {
         if (!editable) {
             return;

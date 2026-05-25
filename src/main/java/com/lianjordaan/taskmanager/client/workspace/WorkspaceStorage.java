@@ -81,7 +81,9 @@ final class WorkspaceStorage {
                     storedNote.scale <= 0.0F ? 1.0F : storedNote.scale,
                     storedNote.hidden,
                     storedNote.locked,
-                    storedNote.zIndex
+                    storedNote.zIndex,
+                    storedNote.tintColor == null ? WorkspaceNote.defaultTintColor(scope) : storedNote.tintColor,
+                    storedNote.cardOpacity == null ? WorkspaceNote.defaultCardOpacity() : storedNote.cardOpacity
                 ));
             }
             return notes;
@@ -96,7 +98,7 @@ final class WorkspaceStorage {
             Files.createDirectories(path.getParent());
 
             StoredWorkspace workspace = new StoredWorkspace();
-            workspace.version = 1;
+            workspace.version = 2;
             workspace.workspaceKey = workspaceKey;
             workspace.workspaceLabel = workspaceLabel;
             workspace.notes = new ArrayList<>();
@@ -114,6 +116,8 @@ final class WorkspaceStorage {
                 storedNote.hidden = note.isHidden();
                 storedNote.locked = note.isLocked();
                 storedNote.zIndex = note.getZIndex();
+                storedNote.tintColor = note.getTintColor();
+                storedNote.cardOpacity = note.getCardOpacity();
                 workspace.notes.add(storedNote);
             }
 
@@ -155,5 +159,7 @@ final class WorkspaceStorage {
         private boolean hidden;
         private boolean locked;
         private long zIndex;
+        private Integer tintColor;
+        private Float cardOpacity;
     }
 }

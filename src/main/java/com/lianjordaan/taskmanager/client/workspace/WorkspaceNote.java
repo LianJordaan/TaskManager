@@ -4,6 +4,10 @@ import java.util.UUID;
 
 public final class WorkspaceNote {
     private static final String EMPTY_SUMMARY = "Empty note";
+    private static final int DEFAULT_GLOBAL_TINT = 0x58BFD7;
+    private static final int DEFAULT_CONTEXT_TINT = 0xF0B96B;
+    private static final float DEFAULT_CARD_OPACITY = 0.90F;
+    private static final float MIN_CARD_OPACITY = 0.20F;
 
     private final UUID id;
     private final WorkspaceScope scope;
@@ -16,6 +20,8 @@ public final class WorkspaceNote {
     private boolean hidden;
     private boolean locked;
     private long zIndex;
+    private int tintColor;
+    private float cardOpacity;
 
     public WorkspaceNote(
         UUID id,
@@ -30,6 +36,24 @@ public final class WorkspaceNote {
         boolean locked,
         long zIndex
     ) {
+        this(id, scope, content, x, y, width, height, scale, hidden, locked, zIndex, defaultTintColor(scope), DEFAULT_CARD_OPACITY);
+    }
+
+    public WorkspaceNote(
+        UUID id,
+        WorkspaceScope scope,
+        String content,
+        float x,
+        float y,
+        float width,
+        float height,
+        float scale,
+        boolean hidden,
+        boolean locked,
+        long zIndex,
+        int tintColor,
+        float cardOpacity
+    ) {
         this.id = id;
         this.scope = scope;
         this.content = content == null ? "" : content;
@@ -41,6 +65,16 @@ public final class WorkspaceNote {
         this.hidden = hidden;
         this.locked = locked;
         this.zIndex = zIndex;
+        this.tintColor = normalizeTintColor(tintColor, scope);
+        this.cardOpacity = normalizeCardOpacity(cardOpacity);
+    }
+
+    public static int defaultTintColor(WorkspaceScope scope) {
+        return scope == WorkspaceScope.GLOBAL ? DEFAULT_GLOBAL_TINT : DEFAULT_CONTEXT_TINT;
+    }
+
+    public static float defaultCardOpacity() {
+        return DEFAULT_CARD_OPACITY;
     }
 
     public UUID getId() {
@@ -123,6 +157,22 @@ public final class WorkspaceNote {
         this.zIndex = zIndex;
     }
 
+    public int getTintColor() {
+        return tintColor;
+    }
+
+    public void setTintColor(int tintColor) {
+        this.tintColor = normalizeTintColor(tintColor, scope);
+    }
+
+    public float getCardOpacity() {
+        return cardOpacity;
+    }
+
+    public void setCardOpacity(float cardOpacity) {
+        this.cardOpacity = normalizeCardOpacity(cardOpacity);
+    }
+
     public int getRenderedWidth() {
         return Math.max(160, Math.round(width * scale));
     }
@@ -140,5 +190,17 @@ public final class WorkspaceNote {
             }
         }
         return EMPTY_SUMMARY;
+    }
+
+    private static int normalizeTintColor(int tintColor, WorkspaceScope scope) {
+        int normalized = tintColor & 0x00FFFFFF;
+        return normalized == 0 ? defaultTintColor(scope) : normalized;
+    }
+
+    private static float normalizeCardOpacity(float cardOpacity) {
+        if (cardOpacity <= 0.0F) {
+            return DEFAULT_CARD_OPACITY;
+        }
+        return Math.max(MIN_CARD_OPACITY, Math.min(1.0F, cardOpacity));
     }
 }
