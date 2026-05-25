@@ -20,9 +20,12 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
     };
     private String value = "";
     private int cursorIndex;
+    private int selectionAnchor;
     private int preferredColumn = -1;
     private int scrollOffset;
     private boolean editable = true;
+    private boolean singleLine;
+    private boolean dragSelecting;
 
     public MultilineTextEditorWidget(Font font, int x, int y, int width, int height) {
         super(x, y, width, height, Component.literal("Workspace note editor"));
@@ -35,8 +38,9 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
     }
 
     public void setValue(String value) {
-        this.value = value == null ? "" : value;
+        this.value = normalizeIncomingValue(value);
         cursorIndex = Math.min(cursorIndex, this.value.length());
+        selectionAnchor = Math.min(selectionAnchor, this.value.length());
         ensureCursorVisible();
     }
 
@@ -55,18 +59,29 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
         this.height = height;
     }
 
+    public void setSingleLine(boolean singleLine) {
+        this.singleLine = singleLine;
+        this.value = normalizeIncomingValue(value);
+        cursorIndex = Math.min(cursorIndex, this.value.length());
+        selectionAnchor = Math.min(selectionAnchor, this.value.length());
+        scrollOffset = 0;
+        ensureCursorVisible();
+    }
+
+    public boolean isSingleLine() {
+        return singleLine;
+    }
+
     public void insertSnippet(String snippet, int cursorBacktrack) {
         if (!editable) {
             return;
         }
 
-        String safeSnippet = snippet == null ? "" : snippet;
-        value = value.substring(0, cursorIndex) + safeSnippet + value.substring(cursorIndex);
-        cursorIndex += safeSnippet.length();
+        replaceSelection(normalizeInsertedText(snippet == null ? "" : snippet), true);
         cursorIndex = Math.max(0, cursorIndex - Math.max(0, cursorBacktrack));
+        selectionAnchor = cursorIndex;
         preferredColumn = -1;
         ensureCursorVisible();
-        responder.accept(value);
     }
 
     @Override
@@ -74,6 +89,7 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
         super.setFocused(focused);
         if (!focused) {
             preferredColumn = -1;
+            dragSelecting = false;
         }
     }
 
@@ -81,6 +97,7 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (!isMouseOver(mouseX, mouseY)) {
             setFocused(false);
+            dragSelecting = false;
             return false;
         }
 
@@ -89,14 +106,45 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
         }
 
         setFocused(true);
+        int targetIndex = cursorIndexForPosition(mouseX, mouseY);
+        if (Screen.hasShiftDown()) {
+            if (!hasSelection()) {
+                selectionAnchor = cursorIndex;
+            }
+            cursorIndex = targetIndex;
+        } else {
+            cursorIndex = targetIndex;
+            selectionAnchor = cursorIndex;
+        }
+        dragSelecting = true;
+        preferredColumn = -1;
+        ensureCursorVisible();
+        return true;
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (!dragSelecting || button != GLFW.GLFW_MOUSE_BUTTON_LEFT || !isFocused()) {
+            return false;
+        }
+
         cursorIndex = cursorIndexForPosition(mouseX, mouseY);
         preferredColumn = -1;
         ensureCursorVisible();
         return true;
     }
 
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && dragSelecting) {
+            dragSelecting = false;
+            return true;
+        }
+        return false;
+    }
+
     public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
-        if (!isMouseOver(mouseX, mouseY)) {
+        if (singleLine || !isMouseOver(mouseX, mouseY)) {
             return false;
         }
 
@@ -112,22 +160,31 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
         }
 
         Minecraft minecraft = Minecraft.getInstance();
+        boolean controlDown = Screen.hasControlDown();
+        boolean shiftDown = Screen.hasShiftDown();
 
         if (Screen.isPaste(keyCode)) {
             insertText(minecraft.keyboardHandler.getClipboard());
             return true;
         }
 
-        if (Screen.hasControlDown() && keyCode == GLFW.GLFW_KEY_C) {
-            minecraft.keyboardHandler.setClipboard(value);
+        if (controlDown && keyCode == GLFW.GLFW_KEY_A) {
+            selectAll();
             return true;
         }
 
-        if (Screen.hasControlDown() && keyCode == GLFW.GLFW_KEY_X) {
-            minecraft.keyboardHandler.setClipboard(value);
-            value = "";
-            cursorIndex = 0;
-            responder.accept(value);
+        if (controlDown && keyCode == GLFW.GLFW_KEY_C) {
+            if (hasSelection()) {
+                minecraft.keyboardHandler.setClipboard(getSelectedText());
+            }
+            return true;
+        }
+
+        if (controlDown && keyCode == GLFW.GLFW_KEY_X) {
+            if (hasSelection()) {
+                minecraft.keyboardHandler.setClipboard(getSelectedText());
+                deleteSelection(true);
+            }
             return true;
         }
 
@@ -141,35 +198,41 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
                 return true;
             }
             case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> {
-                insertText("\n");
-                return true;
+                if (!singleLine) {
+                    insertText("\n");
+                    return true;
+                }
+                return false;
             }
             case GLFW.GLFW_KEY_TAB -> {
-                insertText("    ");
-                return true;
+                if (!singleLine) {
+                    insertText("    ");
+                    return true;
+                }
+                return false;
             }
             case GLFW.GLFW_KEY_LEFT -> {
-                moveHorizontal(-1);
+                moveHorizontal(-1, shiftDown);
                 return true;
             }
             case GLFW.GLFW_KEY_RIGHT -> {
-                moveHorizontal(1);
+                moveHorizontal(1, shiftDown);
                 return true;
             }
             case GLFW.GLFW_KEY_UP -> {
-                moveVertical(-1);
+                moveVertical(-1, shiftDown);
                 return true;
             }
             case GLFW.GLFW_KEY_DOWN -> {
-                moveVertical(1);
+                moveVertical(1, shiftDown);
                 return true;
             }
             case GLFW.GLFW_KEY_HOME -> {
-                moveToLineEdge(true);
+                moveToLineEdge(true, shiftDown);
                 return true;
             }
             case GLFW.GLFW_KEY_END -> {
-                moveToLineEdge(false);
+                moveToLineEdge(false, shiftDown);
                 return true;
             }
             default -> {
@@ -204,6 +267,8 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
 
         List<String> lines = getLines();
         int visibleLines = visibleLineCount();
+        renderSelection(guiGraphics, lines, left, top, visibleLines);
+
         int drawY = top + 6;
         for (int lineIndex = scrollOffset; lineIndex < lines.size() && lineIndex < scrollOffset + visibleLines; lineIndex++) {
             String line = lines.get(lineIndex);
@@ -215,7 +280,8 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
             CursorPosition cursorPosition = getCursorPosition();
             if (cursorPosition.line >= scrollOffset && cursorPosition.line < scrollOffset + visibleLines) {
                 String lineText = lines.get(cursorPosition.line);
-                int cursorX = left + 6 + font.width(lineText.substring(0, Math.min(cursorPosition.column, lineText.length())));
+                int safeColumn = Math.min(cursorPosition.column, lineText.length());
+                int cursorX = left + 6 + font.width(lineText.substring(0, safeColumn));
                 int cursorY = top + 6 + (cursorPosition.line - scrollOffset) * font.lineHeight;
                 guiGraphics.fill(cursorX, cursorY - 1, cursorX + 1, cursorY + font.lineHeight - 1, 0xFFF4F7FA);
             }
@@ -227,54 +293,148 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
     }
 
     private void insertText(String text) {
-        value = value.substring(0, cursorIndex) + text + value.substring(cursorIndex);
-        cursorIndex += text.length();
-        preferredColumn = -1;
-        ensureCursorVisible();
-        responder.accept(value);
+        replaceSelection(normalizeInsertedText(text), true);
     }
 
     private void deleteBackward() {
+        if (deleteSelection(true)) {
+            return;
+        }
         if (cursorIndex <= 0) {
             return;
         }
         value = value.substring(0, cursorIndex - 1) + value.substring(cursorIndex);
         cursorIndex--;
+        selectionAnchor = cursorIndex;
         preferredColumn = -1;
         ensureCursorVisible();
         responder.accept(value);
     }
 
     private void deleteForward() {
+        if (deleteSelection(true)) {
+            return;
+        }
         if (cursorIndex >= value.length()) {
             return;
         }
         value = value.substring(0, cursorIndex) + value.substring(cursorIndex + 1);
+        selectionAnchor = cursorIndex;
+        preferredColumn = -1;
         ensureCursorVisible();
         responder.accept(value);
     }
 
-    private void moveHorizontal(int delta) {
+    private boolean deleteSelection(boolean notify) {
+        if (!hasSelection()) {
+            return false;
+        }
+
+        int start = getSelectionStart();
+        int end = getSelectionEnd();
+        value = value.substring(0, start) + value.substring(end);
+        cursorIndex = start;
+        selectionAnchor = cursorIndex;
+        preferredColumn = -1;
+        ensureCursorVisible();
+        if (notify) {
+            responder.accept(value);
+        }
+        return true;
+    }
+
+    private void replaceSelection(String text, boolean notify) {
+        int start = getSelectionStart();
+        int end = getSelectionEnd();
+        value = value.substring(0, start) + text + value.substring(end);
+        cursorIndex = start + text.length();
+        selectionAnchor = cursorIndex;
+        preferredColumn = -1;
+        ensureCursorVisible();
+        if (notify) {
+            responder.accept(value);
+        }
+    }
+
+    private void moveHorizontal(int delta, boolean extendSelection) {
+        if (!extendSelection && hasSelection()) {
+            cursorIndex = delta < 0 ? getSelectionStart() : getSelectionEnd();
+            selectionAnchor = cursorIndex;
+            preferredColumn = -1;
+            ensureCursorVisible();
+            return;
+        }
+
+        if (extendSelection && !hasSelection()) {
+            selectionAnchor = cursorIndex;
+        }
+
         cursorIndex = Math.max(0, Math.min(value.length(), cursorIndex + delta));
+        if (!extendSelection) {
+            selectionAnchor = cursorIndex;
+        }
         preferredColumn = -1;
         ensureCursorVisible();
     }
 
-    private void moveVertical(int delta) {
+    private void moveVertical(int delta, boolean extendSelection) {
+        if (singleLine) {
+            return;
+        }
+
         CursorPosition cursorPosition = getCursorPosition();
         List<String> lines = getLines();
         int targetLine = Math.max(0, Math.min(lines.size() - 1, cursorPosition.line + delta));
         int targetColumn = preferredColumn >= 0 ? preferredColumn : cursorPosition.column;
+        if (extendSelection && !hasSelection()) {
+            selectionAnchor = cursorIndex;
+        }
         preferredColumn = targetColumn;
-        cursorIndex = absoluteIndex(targetLine, Math.min(lines.get(targetLine).length(), targetColumn));
+        cursorIndex = absoluteIndex(lines, targetLine, Math.min(lines.get(targetLine).length(), targetColumn));
+        if (!extendSelection) {
+            selectionAnchor = cursorIndex;
+        }
         ensureCursorVisible();
     }
 
-    private void moveToLineEdge(boolean start) {
+    private void moveToLineEdge(boolean start, boolean extendSelection) {
         CursorPosition cursorPosition = getCursorPosition();
-        cursorIndex = absoluteIndex(cursorPosition.line, start ? 0 : getLines().get(cursorPosition.line).length());
+        List<String> lines = getLines();
+        if (extendSelection && !hasSelection()) {
+            selectionAnchor = cursorIndex;
+        }
+        cursorIndex = absoluteIndex(lines, cursorPosition.line, start ? 0 : lines.get(cursorPosition.line).length());
+        if (!extendSelection) {
+            selectionAnchor = cursorIndex;
+        }
         preferredColumn = -1;
         ensureCursorVisible();
+    }
+
+    private void selectAll() {
+        selectionAnchor = 0;
+        cursorIndex = value.length();
+        preferredColumn = -1;
+        ensureCursorVisible();
+    }
+
+    private boolean hasSelection() {
+        return cursorIndex != selectionAnchor;
+    }
+
+    private int getSelectionStart() {
+        return Math.min(cursorIndex, selectionAnchor);
+    }
+
+    private int getSelectionEnd() {
+        return Math.max(cursorIndex, selectionAnchor);
+    }
+
+    private String getSelectedText() {
+        if (!hasSelection()) {
+            return "";
+        }
+        return value.substring(getSelectionStart(), getSelectionEnd());
     }
 
     private void ensureCursorVisible() {
@@ -285,18 +445,23 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
         } else if (cursorPosition.line >= scrollOffset + visibleLines) {
             scrollOffset = cursorPosition.line - visibleLines + 1;
         }
+        if (singleLine) {
+            scrollOffset = 0;
+        }
     }
 
     private int cursorIndexForPosition(double mouseX, double mouseY) {
         List<String> lines = getLines();
-        int line = Math.max(0, Math.min(lines.size() - 1, scrollOffset + (int) ((mouseY - getY() - 6) / font.lineHeight)));
+        int line = singleLine
+            ? 0
+            : Math.max(0, Math.min(lines.size() - 1, scrollOffset + (int) ((mouseY - getY() - 6) / font.lineHeight)));
         String lineText = lines.get(line);
         int relativeX = Math.max(0, (int) mouseX - getX() - 6);
         int column = 0;
         while (column < lineText.length() && font.width(lineText.substring(0, column + 1)) <= relativeX) {
             column++;
         }
-        return absoluteIndex(line, column);
+        return absoluteIndex(lines, line, column);
     }
 
     private CursorPosition getCursorPosition() {
@@ -313,8 +478,7 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
         return new CursorPosition(lastLine, lines.get(lastLine).length());
     }
 
-    private int absoluteIndex(int line, int column) {
-        List<String> lines = getLines();
+    private int absoluteIndex(List<String> lines, int line, int column) {
         int index = 0;
         for (int lineIndex = 0; lineIndex < line; lineIndex++) {
             index += lines.get(lineIndex).length() + 1;
@@ -323,6 +487,12 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
     }
 
     private List<String> getLines() {
+        if (singleLine) {
+            List<String> lines = new ArrayList<>(1);
+            lines.add(value);
+            return lines;
+        }
+
         String[] split = value.split("\\n", -1);
         List<String> lines = new ArrayList<>(split.length);
         for (String line : split) {
@@ -335,7 +505,47 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
     }
 
     private int visibleLineCount() {
+        if (singleLine) {
+            return 1;
+        }
         return Math.max(1, (height - 12) / font.lineHeight);
+    }
+
+    private void renderSelection(GuiGraphics guiGraphics, List<String> lines, int left, int top, int visibleLines) {
+        if (!hasSelection() || !isFocused()) {
+            return;
+        }
+
+        int selectionStart = getSelectionStart();
+        int selectionEnd = getSelectionEnd();
+        int absoluteIndex = 0;
+        for (int lineIndex = 0; lineIndex < lines.size(); lineIndex++) {
+            String lineText = lines.get(lineIndex);
+            int lineStart = absoluteIndex;
+            int lineEnd = lineStart + lineText.length();
+            int nextIndex = lineEnd + 1;
+
+            if (lineIndex >= scrollOffset && lineIndex < scrollOffset + visibleLines) {
+                int overlapStart = Math.max(selectionStart, lineStart);
+                int overlapEnd = Math.min(selectionEnd, lineEnd);
+                if (selectionEnd > lineEnd && selectionStart <= lineEnd) {
+                    overlapEnd = lineEnd;
+                }
+                if (overlapStart < overlapEnd || (selectionEnd > lineEnd && selectionStart <= lineEnd)) {
+                    int startColumn = Math.max(0, overlapStart - lineStart);
+                    int endColumn = Math.max(startColumn, Math.min(lineText.length(), overlapEnd - lineStart));
+                    int selectionLeft = left + 6 + font.width(lineText.substring(0, startColumn));
+                    int selectionRight = left + 6 + font.width(lineText.substring(0, endColumn));
+                    if (selectionStart <= lineEnd && selectionEnd > lineEnd) {
+                        selectionRight = left + 6 + font.width(lineText);
+                    }
+                    int selectionTop = top + 6 + (lineIndex - scrollOffset) * font.lineHeight;
+                    guiGraphics.fill(selectionLeft, selectionTop - 1, Math.max(selectionLeft + 1, selectionRight), selectionTop + font.lineHeight - 1, 0x803A89C9);
+                }
+            }
+
+            absoluteIndex = nextIndex;
+        }
     }
 
     private String trimToWidth(String text, int maxWidth) {
@@ -349,6 +559,20 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
             end--;
         }
         return text.substring(0, end) + ellipsis;
+    }
+
+    private String normalizeIncomingValue(String value) {
+        String safeValue = value == null ? "" : value.replace("\r", "");
+        return singleLine ? normalizeSingleLineText(safeValue) : safeValue;
+    }
+
+    private String normalizeInsertedText(String text) {
+        String safeText = text == null ? "" : text.replace("\r", "");
+        return singleLine ? normalizeSingleLineText(safeText) : safeText;
+    }
+
+    private String normalizeSingleLineText(String text) {
+        return text.replace('\n', ' ').trim();
     }
 
     private record CursorPosition(int line, int column) {

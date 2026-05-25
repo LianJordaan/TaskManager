@@ -73,6 +73,7 @@ final class WorkspaceStorage {
                 notes.add(new WorkspaceNote(
                     parseUuid(storedNote.id),
                     scope,
+                    storedNote.title,
                     storedNote.content,
                     storedNote.x,
                     storedNote.y,
@@ -98,7 +99,7 @@ final class WorkspaceStorage {
             Files.createDirectories(path.getParent());
 
             StoredWorkspace workspace = new StoredWorkspace();
-            workspace.version = 2;
+            workspace.version = 3;
             workspace.workspaceKey = workspaceKey;
             workspace.workspaceLabel = workspaceLabel;
             workspace.notes = new ArrayList<>();
@@ -107,6 +108,7 @@ final class WorkspaceStorage {
                 StoredNote storedNote = new StoredNote();
                 storedNote.id = note.getId().toString();
                 storedNote.scope = note.getScope().name();
+                storedNote.title = note.getTitle();
                 storedNote.content = note.getContent();
                 storedNote.x = note.getX();
                 storedNote.y = note.getY();
@@ -150,6 +152,7 @@ final class WorkspaceStorage {
     private static final class StoredNote {
         private String id;
         private String scope;
+        private String title;
         private String content;
         private float x;
         private float y;

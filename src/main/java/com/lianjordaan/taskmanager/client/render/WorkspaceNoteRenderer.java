@@ -4,10 +4,13 @@ import com.lianjordaan.taskmanager.client.workspace.WorkspaceNote;
 import com.lianjordaan.taskmanager.client.workspace.WorkspaceScope;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.util.Mth;
 
 public final class WorkspaceNoteRenderer {
     public static final int HEADER_HEIGHT = 22;
     public static final int RESIZE_HANDLE_SIZE = 10;
+    private static final int BASE_TEXT_COLOR = 0xFFF9FCFF;
+    private static final int SELECTED_OUTLINE = 0xFF71C8FF;
 
     private WorkspaceNoteRenderer() {
     }
@@ -15,43 +18,50 @@ public final class WorkspaceNoteRenderer {
     public static void render(GuiGraphics guiGraphics, Font font, WorkspaceNote note, boolean overlayMode, boolean selected) {
         int x = Math.round(note.getX());
         int y = Math.round(note.getY());
-        int width = note.getRenderedWidth();
-        int height = note.getRenderedHeight();
+        int width = Math.max(160, Math.round(note.getWidth()));
+        int height = Math.max(96, Math.round(note.getHeight()));
         int tint = note.getTintColor();
         int surfaceRgb = blend(0x101722, tint, 0.22F);
         int accent = withAlpha(blend(tint, 0xFFFFFF, 0.08F), alphaFromOpacity(note.getCardOpacity() + 0.08F));
         int surface = withAlpha(surfaceRgb, alphaFromOpacity(note.getCardOpacity()));
-        int outline = selected ? 0xFFF8E38A : withAlpha(blend(surfaceRgb, 0xD7E0EA, 0.28F), 96);
+        int outline = selected ? SELECTED_OUTLINE : withAlpha(blend(surfaceRgb, 0xD7E0EA, 0.28F), 96);
         int divider = withAlpha(blend(surfaceRgb, tint, 0.42F), 72);
         int textAlpha = overlayMode && note.isHidden() ? 144 : 255;
+        int scopeLabelWidth = font.width(note.getScope() == WorkspaceScope.GLOBAL ? "GLOBAL" : "CONTEXT");
+        int titleWidth = Math.max(40, width - scopeLabelWidth - 22);
 
-        guiGraphics.fill(x - 1, y - 1, x + width + 1, y + height + 1, outline);
-        guiGraphics.fill(x, y, x + width, y + height, surface);
-        guiGraphics.fill(x, y, x + width, y + HEADER_HEIGHT, accent);
-        guiGraphics.fill(x, y + HEADER_HEIGHT, x + width, y + HEADER_HEIGHT + 1, divider);
+        WorkspaceRenderCompat.pushTranslateScale(guiGraphics, x, y, note.getScale());
 
-        guiGraphics.drawString(font, note.getSummary(), x + 8, y + 7, withAlpha(0xFFF9FCFF, textAlpha), false);
-        guiGraphics.drawString(font, note.getScope() == WorkspaceScope.GLOBAL ? "GLOBAL" : "CONTEXT", x + width - 48, y + 7, withAlpha(0xFFF9FCFF, textAlpha), false);
+        guiGraphics.fill(-1, -1, width + 1, height + 1, outline);
+        guiGraphics.fill(0, 0, width, height, surface);
+        guiGraphics.fill(0, 0, width, HEADER_HEIGHT, accent);
+        guiGraphics.fill(0, HEADER_HEIGHT, width, HEADER_HEIGHT + 1, divider);
 
-        int badgeX = x + width - 68;
+        guiGraphics.drawString(font, trimToWidth(font, note.getDisplayTitle(), titleWidth), 8, 7, withAlpha(BASE_TEXT_COLOR, textAlpha), false);
+        guiGraphics.drawString(font, note.getScope() == WorkspaceScope.GLOBAL ? "GLOBAL" : "CONTEXT", width - scopeLabelWidth - 8, 7, withAlpha(BASE_TEXT_COLOR, textAlpha), false);
+
+        int badgeX = width - scopeLabelWidth - 28;
         if (note.isHidden()) {
-            guiGraphics.drawString(font, "H", badgeX, y + 7, withAlpha(0xFFD5E7FF, textAlpha), false);
+            guiGraphics.drawString(font, "H", badgeX, 7, withAlpha(0xFFD5E7FF, textAlpha), false);
             badgeX -= 12;
         }
         if (note.isLocked()) {
-            guiGraphics.drawString(font, "L", badgeX, y + 7, withAlpha(0xFFD5E7FF, textAlpha), false);
+            guiGraphics.drawString(font, "L", badgeX, 7, withAlpha(0xFFD5E7FF, textAlpha), false);
         }
 
-        MarkdownRenderer.render(guiGraphics, font, note.getContent(), x + 10, y + HEADER_HEIGHT + 8, width - 18, height - HEADER_HEIGHT - 16, textAlpha);
+        MarkdownRenderer.render(guiGraphics, font, note.getContent(), 10, HEADER_HEIGHT + 8, width - 18, height - HEADER_HEIGHT - 16, textAlpha);
 
         if (overlayMode) {
             if (note.isHidden()) {
-                guiGraphics.fill(x, y, x + width, y + height, withAlpha(blend(0x303B4C, tint, 0.12F), 102));
+                guiGraphics.fill(0, 0, width, height, withAlpha(blend(0x303B4C, tint, 0.12F), 102));
             }
             if (selected && !note.isLocked()) {
-                guiGraphics.fill(x + width - RESIZE_HANDLE_SIZE, y + height - RESIZE_HANDLE_SIZE, x + width, y + height, 0xFF7CE2C2);
+                int handleSize = getRenderedResizeHandleSize(note, true);
+                guiGraphics.fill(width - handleSize, height - handleSize, width, height, 0xFF7CE2C2);
             }
         }
+
+        WorkspaceRenderCompat.pop(guiGraphics);
     }
 
     public static boolean contains(WorkspaceNote note, double mouseX, double mouseY) {
@@ -63,7 +73,7 @@ public final class WorkspaceNoteRenderer {
     public static boolean isHeaderHit(WorkspaceNote note, double mouseX, double mouseY) {
         int x = Math.round(note.getX());
         int y = Math.round(note.getY());
-        return mouseX >= x && mouseX <= x + note.getRenderedWidth() && mouseY >= y && mouseY <= y + HEADER_HEIGHT;
+        return mouseX >= x && mouseX <= x + note.getRenderedWidth() && mouseY >= y && mouseY <= y + getRenderedHeaderHeight(note);
     }
 
     public static boolean isResizeHandleHit(WorkspaceNote note, double mouseX, double mouseY) {
@@ -71,8 +81,13 @@ public final class WorkspaceNoteRenderer {
         int y = Math.round(note.getY());
         int width = note.getRenderedWidth();
         int height = note.getRenderedHeight();
-        return mouseX >= x + width - RESIZE_HANDLE_SIZE && mouseX <= x + width
-            && mouseY >= y + height - RESIZE_HANDLE_SIZE && mouseY <= y + height;
+        int handleSize = getRenderedResizeHandleSize(note, false);
+        return mouseX >= x + width - handleSize && mouseX <= x + width
+            && mouseY >= y + height - handleSize && mouseY <= y + height;
+    }
+
+    public static int getRenderedHeaderHeight(WorkspaceNote note) {
+        return Math.max(14, Math.round(HEADER_HEIGHT * note.getScale()));
     }
 
     private static int withAlpha(int color, int alpha) {
@@ -80,8 +95,29 @@ public final class WorkspaceNoteRenderer {
     }
 
     private static int alphaFromOpacity(float opacity) {
-        float clamped = Math.max(0.20F, Math.min(1.0F, opacity));
-        return Math.max(51, Math.min(255, Math.round(255.0F * clamped)));
+        float clamped = Math.max(0.10F, Math.min(1.0F, opacity));
+        return Math.max(26, Math.min(255, Math.round(255.0F * clamped)));
+    }
+
+    private static int getRenderedResizeHandleSize(WorkspaceNote note, boolean localSpace) {
+        int scaledSize = Math.max(8, Math.round(RESIZE_HANDLE_SIZE * note.getScale()));
+        if (localSpace) {
+            return Mth.ceil(scaledSize / Math.max(0.01F, note.getScale()));
+        }
+        return scaledSize;
+    }
+
+    private static String trimToWidth(Font font, String text, int maxWidth) {
+        if (font.width(text) <= maxWidth) {
+            return text;
+        }
+
+        String ellipsis = "...";
+        int end = text.length();
+        while (end > 1 && font.width(text.substring(0, end) + ellipsis) > maxWidth) {
+            end--;
+        }
+        return text.substring(0, end) + ellipsis;
     }
 
     private static int blend(int from, int to, float ratio) {

@@ -11,6 +11,7 @@ import com.lianjordaan.taskmanager.client.workspace.WorkspaceOverlayLayoutStorag
 import com.lianjordaan.taskmanager.client.workspace.WorkspaceOverlayPanel;
 import com.lianjordaan.taskmanager.client.workspace.WorkspaceScope;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
@@ -33,13 +34,18 @@ public final class WorkspaceOverlayScreen extends Screen {
     private static final int NOTE_MIN_HEIGHT = 96;
     private static final int NOTE_EDGE_VISIBILITY = 44;
     private static final int PANEL_EDGE_VISIBILITY = 96;
+    private static final int DRAWER_TOGGLE_WIDTH = 78;
+    private static final int DRAWER_TOGGLE_HEIGHT = 20;
+    private static final int PANEL_CONTROL_SIZE = 14;
+    private static final int PANEL_RESIZE_HANDLE_SIZE = 14;
+    private static final long HEADER_DOUBLE_CLICK_MS = 300L;
 
-    private static final int SETTINGS_PANEL_WIDTH = 314;
-    private static final int SETTINGS_PANEL_HEIGHT = 194;
+    private static final int SETTINGS_PANEL_WIDTH = 336;
+    private static final int SETTINGS_PANEL_HEIGHT = 236;
     private static final int EDITOR_PANEL_WIDTH = 392;
     private static final int EDITOR_PANEL_HEIGHT = 296;
     private static final int PREVIEW_PANEL_WIDTH = 340;
-    private static final int PREVIEW_PANEL_HEIGHT = 220;
+    private static final int PREVIEW_PANEL_HEIGHT = 236;
 
     private static final int[] NOTE_SWATCHES = {
         0x58BFD7,
@@ -69,9 +75,12 @@ public final class WorkspaceOverlayScreen extends Screen {
 
     private WorkspaceOverlayLayoutState overlayLayout;
     private WorkspaceNote selectedNote;
+    private WorkspaceNote titleEditingNote;
+    private WorkspaceNote lastHeaderClickedNote;
     private WorkspaceOverlayPanel activePanel;
     private NoteInteractionMode noteInteractionMode = NoteInteractionMode.NONE;
     private PanelInteractionMode panelInteractionMode = PanelInteractionMode.NONE;
+    private long lastHeaderClickAt;
     private float interactionOffsetX;
     private float interactionOffsetY;
     private float interactionStartWidth;
@@ -99,6 +108,7 @@ public final class WorkspaceOverlayScreen extends Screen {
     private Button codeButton;
 
     private MultilineTextEditorWidget editorWidget;
+    private MultilineTextEditorWidget titleEditorWidget;
 
     public WorkspaceOverlayScreen(boolean quickCreateRequested) {
         super(Component.literal("TaskManager Workspace"));
@@ -188,6 +198,18 @@ public final class WorkspaceOverlayScreen extends Screen {
             workspaceManager.saveNote(selectedNote);
         });
 
+        titleEditorWidget = addRenderableWidget(new MultilineTextEditorWidget(font, 0, 0, 140, 20));
+        titleEditorWidget.setSingleLine(true);
+        titleEditorWidget.setEditable(false);
+        titleEditorWidget.setResponder(value -> {
+            if (titleEditingNote == null) {
+                return;
+            }
+            titleEditingNote.setTitle(value);
+            workspaceManager.saveNote(titleEditingNote);
+        });
+        titleEditorWidget.visible = false;
+
         if (selectedNote != null && !workspaceManager.contains(selectedNote)) {
             selectedNote = null;
         }
@@ -212,6 +234,9 @@ public final class WorkspaceOverlayScreen extends Screen {
             selectedNote = null;
             syncEditorWithSelection();
         }
+        if (titleEditingNote != null && !workspaceManager.contains(titleEditingNote)) {
+            stopTitleEditing();
+        }
 
         ensurePanelLayouts();
         positionWidgets();
@@ -219,9 +244,9 @@ public final class WorkspaceOverlayScreen extends Screen {
 
         guiGraphics.fill(0, 0, width, height, 0xB0121622);
         renderWorkspaceBackground(guiGraphics);
+        renderFloatingPanels(guiGraphics);
         renderNotes(guiGraphics);
         renderChrome(guiGraphics, mouseX, mouseY);
-        renderFloatingPanels(guiGraphics);
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
     }
@@ -238,17 +263,32 @@ public final class WorkspaceOverlayScreen extends Screen {
             return true;
         }
 
-        WorkspaceOverlayPanel hoveredPanel = findTopmostPanel(context.x(), context.y());
-        if (hoveredPanel != null) {
-            focusPanel(hoveredPanel);
-            if (context.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-                WorkspaceOverlayLayoutState.PanelLayout layout = panelLayout(hoveredPanel);
-                if (layout != null && layout.headerContains(context.x(), context.y(), PANEL_HEADER_HEIGHT)) {
-                    panelInteractionMode = PanelInteractionMode.DRAG;
-                    interactionOffsetX = (float) context.x() - layout.getX();
-                    interactionOffsetY = (float) context.y() - layout.getY();
-                    return true;
+        if (titleEditingNote != null && titleEditorWidget.visible && titleEditorWidget.isMouseOver(context.x(), context.y())) {
+            return super.mouseClicked(context, false);
+        }
+        if (titleEditingNote != null) {
+            stopTitleEditing();
+        }
+
+        if (context.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && isDrawerToggleHit(context.x(), context.y())) {
+            overlayLayout.setNoteDrawerOpen(!overlayLayout.isNoteDrawerOpen());
+            persistOverlayLayout();
+            return true;
+        }
+
+        if (overlayLayout.isNoteDrawerOpen()) {
+            NoteRowHit rowHit = findNoteRowHit(context.x(), context.y());
+            if (rowHit != null) {
+                if (rowHit.visibilityToggle) {
+                    rowHit.note.setHidden(!rowHit.note.isHidden());
+                    workspaceManager.saveNote(rowHit.note);
+                } else {
+                    selectNote(rowHit.note);
                 }
+                return true;
+            }
+            if (isDrawerBodyHit(context.x(), context.y())) {
+                return true;
             }
         }
 
@@ -256,7 +296,7 @@ public final class WorkspaceOverlayScreen extends Screen {
             return true;
         }
 
-        if (hoveredPanel != null) {
+        if (context.y() <= TOP_BAR_HEIGHT) {
             return true;
         }
 
@@ -264,25 +304,14 @@ public final class WorkspaceOverlayScreen extends Screen {
             return false;
         }
 
-        NoteRowHit rowHit = findNoteRowHit(context.x(), context.y());
-        if (rowHit != null) {
-            if (rowHit.visibilityToggle) {
-                rowHit.note.setHidden(!rowHit.note.isHidden());
-                workspaceManager.saveNote(rowHit.note);
-            } else {
-                selectNote(rowHit.note);
-            }
-            return true;
-        }
-
-        if (context.y() <= TOP_BAR_HEIGHT || (context.x() >= SIDEBAR_X && context.x() <= SIDEBAR_RIGHT && context.y() >= TOP_BAR_HEIGHT)) {
-            return true;
-        }
-
         WorkspaceNote hoveredNote = findTopmostNote(context.x(), context.y());
         if (hoveredNote != null) {
             selectNote(hoveredNote);
             workspaceManager.bringToFront(hoveredNote);
+            if (WorkspaceNoteRenderer.isHeaderHit(hoveredNote, context.x(), context.y()) && shouldStartTitleEditing(hoveredNote)) {
+                startTitleEditing(hoveredNote);
+                return true;
+            }
             if (!hoveredNote.isLocked() && WorkspaceNoteRenderer.isResizeHandleHit(hoveredNote, context.x(), context.y())) {
                 noteInteractionMode = NoteInteractionMode.RESIZE;
                 interactionStartWidth = hoveredNote.getWidth();
@@ -297,6 +326,37 @@ public final class WorkspaceOverlayScreen extends Screen {
             return true;
         }
 
+        WorkspaceOverlayPanel hoveredPanel = findTopmostPanel(context.x(), context.y());
+        if (hoveredPanel != null) {
+            focusPanel(hoveredPanel);
+            WorkspaceOverlayLayoutState.PanelLayout layout = panelLayout(hoveredPanel);
+            if (layout != null) {
+                if (isPanelMinimizeHit(layout, context.x(), context.y())) {
+                    layout.setMinimized(!layout.isMinimized());
+                    clampPanelToViewport(hoveredPanel, layout);
+                    positionWidgets();
+                    refreshButtonStates();
+                    persistOverlayLayout();
+                    return true;
+                }
+                if (!layout.isMinimized() && isPanelResizeHandleHit(layout, context.x(), context.y())) {
+                    panelInteractionMode = PanelInteractionMode.RESIZE;
+                    interactionStartWidth = layout.getWidth();
+                    interactionStartHeight = layout.getHeight();
+                    interactionStartMouseX = (float) context.x();
+                    interactionStartMouseY = (float) context.y();
+                    return true;
+                }
+                if (panelHeaderContains(layout, context.x(), context.y())) {
+                    panelInteractionMode = PanelInteractionMode.DRAG;
+                    interactionOffsetX = (float) context.x() - layout.getX();
+                    interactionOffsetY = (float) context.y() - layout.getY();
+                    return true;
+                }
+            }
+            return true;
+        }
+
         selectedNote = null;
         syncEditorWithSelection();
         return true;
@@ -304,12 +364,17 @@ public final class WorkspaceOverlayScreen extends Screen {
 
     @Override
     public boolean mouseDragged(MouseButtonEvent context, double dragX, double dragY) {
-        if (context.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && panelInteractionMode == PanelInteractionMode.DRAG && activePanel != null) {
+        if (context.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && panelInteractionMode != PanelInteractionMode.NONE && activePanel != null) {
             WorkspaceOverlayLayoutState.PanelLayout layout = panelLayout(activePanel);
             if (layout != null) {
-                layout.setX((int) Math.round(context.x() - interactionOffsetX));
-                layout.setY((int) Math.round(context.y() - interactionOffsetY));
-                clampPanelToViewport(layout);
+                if (panelInteractionMode == PanelInteractionMode.DRAG) {
+                    layout.setX((int) Math.round(context.x() - interactionOffsetX));
+                    layout.setY((int) Math.round(context.y() - interactionOffsetY));
+                } else if (panelInteractionMode == PanelInteractionMode.RESIZE) {
+                    layout.setWidth(Math.max(panelMinWidth(activePanel), Math.round(interactionStartWidth + ((float) context.x() - interactionStartMouseX))));
+                    layout.setHeight(Math.max(panelMinHeight(activePanel), Math.round(interactionStartHeight + ((float) context.y() - interactionStartMouseY))));
+                }
+                clampPanelToViewport(activePanel, layout);
                 positionWidgets();
                 panelLayoutDirty = true;
             }
@@ -374,6 +439,13 @@ public final class WorkspaceOverlayScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent context) {
+        if (titleEditingNote != null && titleEditorWidget.isFocused()) {
+            if (context.key() == GLFW.GLFW_KEY_ENTER || context.key() == GLFW.GLFW_KEY_KP_ENTER || context.key() == GLFW.GLFW_KEY_ESCAPE) {
+                stopTitleEditing();
+                return true;
+            }
+        }
+
         if (super.keyPressed(context)) {
             return true;
         }
@@ -413,15 +485,18 @@ public final class WorkspaceOverlayScreen extends Screen {
 
     private void renderChrome(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         guiGraphics.fill(0, 0, width, TOP_BAR_HEIGHT, 0xF01B2230);
-        guiGraphics.fill(SIDEBAR_X, 36, SIDEBAR_RIGHT, height - 8, 0xD81A2130);
 
         guiGraphics.drawString(font, title, 14, 10, 0xFFF5F7FA, false);
         WorkspaceContext context = workspaceManager.getCurrentContext();
         guiGraphics.drawString(font, Component.literal(context.isAvailable() ? "Global + " + context.getLabel() : "Global workspace"), 118, 10, 0xFF8FB3C9, false);
-        guiGraphics.drawString(font, Component.literal("Notes"), SIDEBAR_TEXT_X, 44, 0xFFF5F7FA, false);
-        guiGraphics.drawString(font, Component.literal("Panels are draggable. Hold Shift to ignore snap."), SIDEBAR_RIGHT + 18, 44, 0xFF8FA3B9, false);
+        guiGraphics.drawString(font, Component.literal("Panels can drag, minimize, and resize. Hold Shift to ignore snap."), SIDEBAR_RIGHT + 18, 44, 0xFF8FA3B9, false);
 
-        renderSidebar(guiGraphics, mouseX, mouseY);
+        renderDrawerToggle(guiGraphics, mouseX, mouseY);
+        if (overlayLayout.isNoteDrawerOpen()) {
+            guiGraphics.fill(SIDEBAR_X, 36, SIDEBAR_RIGHT, height - 8, 0xD81A2130);
+            guiGraphics.drawString(font, Component.literal("Notes"), SIDEBAR_TEXT_X, 44, 0xFFF5F7FA, false);
+            renderSidebar(guiGraphics, mouseX, mouseY);
+        }
     }
 
     private void renderSidebar(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -478,6 +553,9 @@ public final class WorkspaceOverlayScreen extends Screen {
         }
 
         renderPanelFrame(guiGraphics, layout, "Card Settings", selectedNote == null ? "Select a note" : selectedNote.getSummary());
+        if (layout.isMinimized()) {
+            return;
+        }
         int left = layout.getX() + PANEL_PADDING;
         int top = layout.getY() + PANEL_HEADER_HEIGHT + 8;
 
@@ -501,6 +579,9 @@ public final class WorkspaceOverlayScreen extends Screen {
         }
 
         renderPanelFrame(guiGraphics, layout, "Editor", selectedNote == null ? "No note selected" : "Markdown source");
+        if (layout.isMinimized()) {
+            return;
+        }
         if (selectedNote == null) {
             guiGraphics.drawString(font, Component.literal("Select a note or create one from the top bar."), layout.getX() + PANEL_PADDING, layout.getY() + PANEL_HEADER_HEIGHT + 8, 0xFFD7E0EA, false);
         }
@@ -512,6 +593,9 @@ public final class WorkspaceOverlayScreen extends Screen {
         }
 
         renderPanelFrame(guiGraphics, layout, "Preview", selectedNote == null ? "Markdown render" : selectedNote.getScope().getDisplayName());
+        if (layout.isMinimized()) {
+            return;
+        }
         int left = layout.getX() + PANEL_PADDING;
         int top = layout.getY() + PANEL_HEADER_HEIGHT + 8;
         int contentWidth = layout.getWidth() - PANEL_PADDING * 2;
@@ -528,15 +612,23 @@ public final class WorkspaceOverlayScreen extends Screen {
         int left = layout.getX();
         int top = layout.getY();
         int right = layout.right();
-        int bottom = layout.bottom();
+        int bottom = panelBottom(layout);
         boolean focused = activePanel != null && panelLayout(activePanel) == layout;
 
         guiGraphics.fill(left - 1, top - 1, right + 1, bottom + 1, focused ? 0xFF7CE2C2 : 0x70445265);
-        guiGraphics.fill(left, top, right, bottom, 0xED18202C);
+        if (!layout.isMinimized()) {
+            guiGraphics.fill(left, top, right, bottom, 0xED18202C);
+        }
         guiGraphics.fill(left, top, right, top + PANEL_HEADER_HEIGHT, 0xF0223140);
         guiGraphics.drawString(font, Component.literal(title), left + 8, top + 7, 0xFFF5F7FA, false);
         if (subtitle != null && !subtitle.isBlank()) {
             guiGraphics.drawString(font, Component.literal(subtitle), left + 78, top + 7, 0xFF8FB3C9, false);
+        }
+        int controlLeft = right - PANEL_CONTROL_SIZE - 8;
+        guiGraphics.fill(controlLeft, top + 4, controlLeft + PANEL_CONTROL_SIZE, top + 4 + PANEL_CONTROL_SIZE, 0x60435466);
+        guiGraphics.drawString(font, layout.isMinimized() ? "+" : "-", controlLeft + 4, top + 7, 0xFFF5F7FA, false);
+        if (!layout.isMinimized()) {
+            guiGraphics.fill(right - PANEL_RESIZE_HANDLE_SIZE, bottom - PANEL_RESIZE_HANDLE_SIZE, right, bottom, 0xFF7CE2C2);
         }
     }
 
@@ -551,7 +643,18 @@ public final class WorkspaceOverlayScreen extends Screen {
         resetLayoutButton.setY(6);
 
         WorkspaceOverlayLayoutState.PanelLayout settings = panelLayout(WorkspaceOverlayPanel.SETTINGS);
-        if (settings != null) {
+        boolean settingsVisible = settings != null && !settings.isMinimized();
+        setWidgetVisible(hideButton, settingsVisible);
+        setWidgetVisible(lockButton, settingsVisible);
+        setWidgetVisible(deleteButton, settingsVisible);
+        setWidgetVisible(scaleDownButton, settingsVisible);
+        setWidgetVisible(scaleUpButton, settingsVisible);
+        setWidgetVisible(opacityDownButton, settingsVisible);
+        setWidgetVisible(opacityUpButton, settingsVisible);
+        for (Button swatchButton : swatchButtons) {
+            setWidgetVisible(swatchButton, settingsVisible);
+        }
+        if (settingsVisible) {
             int left = settings.getX() + PANEL_PADDING;
             int top = settings.getY() + PANEL_HEADER_HEIGHT + 34;
             hideButton.setX(left);
@@ -579,7 +682,15 @@ public final class WorkspaceOverlayScreen extends Screen {
         }
 
         WorkspaceOverlayLayoutState.PanelLayout editor = panelLayout(WorkspaceOverlayPanel.EDITOR);
-        if (editor != null) {
+        boolean editorVisible = editor != null && !editor.isMinimized();
+        setWidgetVisible(headingButton, editorVisible);
+        setWidgetVisible(boldButton, editorVisible);
+        setWidgetVisible(italicButton, editorVisible);
+        setWidgetVisible(listButton, editorVisible);
+        setWidgetVisible(quoteButton, editorVisible);
+        setWidgetVisible(codeButton, editorVisible);
+        setWidgetVisible(editorWidget, editorVisible);
+        if (editorVisible) {
             int left = editor.getX() + PANEL_PADDING;
             int toolbarY = editor.getY() + PANEL_HEADER_HEIGHT + 8;
             headingButton.setX(left);
@@ -597,6 +708,18 @@ public final class WorkspaceOverlayScreen extends Screen {
 
             editorWidget.setBounds(left, toolbarY + 28, editor.getWidth() - PANEL_PADDING * 2, editor.getHeight() - PANEL_HEADER_HEIGHT - 46);
         }
+
+        boolean titleEditorVisible = titleEditingNote != null && workspaceManager.contains(titleEditingNote);
+        setWidgetVisible(titleEditorWidget, titleEditorVisible);
+        titleEditorWidget.setEditable(titleEditorVisible);
+        if (titleEditorVisible) {
+            int headerX = Math.round(titleEditingNote.getX()) + 8;
+            int headerY = Math.round(titleEditingNote.getY()) + 4;
+            int scopeLabelWidth = font.width(titleEditingNote.getScope() == WorkspaceScope.GLOBAL ? "GLOBAL" : "CONTEXT");
+            int titleWidth = Math.max(108, titleEditingNote.getRenderedWidth() - scopeLabelWidth - 34);
+            int titleHeight = Math.max(18, WorkspaceNoteRenderer.getRenderedHeaderHeight(titleEditingNote) - 8);
+            titleEditorWidget.setBounds(headerX, headerY, titleWidth, titleHeight);
+        }
     }
 
     private void ensurePanelLayouts() {
@@ -607,7 +730,7 @@ public final class WorkspaceOverlayScreen extends Screen {
         for (WorkspaceOverlayPanel panel : WorkspaceOverlayPanel.values()) {
             WorkspaceOverlayLayoutState.PanelLayout layout = panelLayout(panel);
             if (layout != null) {
-                clampPanelToViewport(layout);
+                clampPanelToViewport(panel, layout);
             }
         }
         if (activePanel == null) {
@@ -641,6 +764,9 @@ public final class WorkspaceOverlayScreen extends Screen {
     }
 
     private void selectNote(WorkspaceNote note) {
+        if (titleEditingNote != null && titleEditingNote != note) {
+            stopTitleEditing();
+        }
         selectedNote = note;
         syncEditorWithSelection();
     }
@@ -669,7 +795,7 @@ public final class WorkspaceOverlayScreen extends Screen {
         if (selectedNote == null) {
             return;
         }
-        selectedNote.setCardOpacity(clamp(selectedNote.getCardOpacity() + delta, 0.20F, 1.0F));
+        selectedNote.setCardOpacity(clamp(selectedNote.getCardOpacity() + delta, 0.10F, 1.0F));
         workspaceManager.saveNote(selectedNote);
     }
 
@@ -694,6 +820,9 @@ public final class WorkspaceOverlayScreen extends Screen {
     private void deleteSelected() {
         if (selectedNote == null) {
             return;
+        }
+        if (titleEditingNote == selectedNote) {
+            stopTitleEditing();
         }
         workspaceManager.deleteNote(selectedNote);
         selectedNote = firstAvailableNote();
@@ -728,10 +857,34 @@ public final class WorkspaceOverlayScreen extends Screen {
 
     private void syncEditorWithSelection() {
         syncingEditor = true;
-        editorWidget.setEditable(selectedNote != null);
+        editorWidget.setEditable(selectedNote != null && isPanelExpanded(WorkspaceOverlayPanel.EDITOR));
         editorWidget.setValue(selectedNote == null ? "" : selectedNote.getContent());
         syncingEditor = false;
         refreshButtonStates();
+    }
+
+    private void startTitleEditing(WorkspaceNote note) {
+        titleEditingNote = note;
+        titleEditorWidget.setValue(note.getTitle());
+        titleEditorWidget.setEditable(true);
+        titleEditorWidget.visible = true;
+        titleEditorWidget.setFocused(true);
+        positionWidgets();
+    }
+
+    private void stopTitleEditing() {
+        titleEditingNote = null;
+        titleEditorWidget.setFocused(false);
+        titleEditorWidget.setEditable(false);
+        titleEditorWidget.visible = false;
+    }
+
+    private boolean shouldStartTitleEditing(WorkspaceNote note) {
+        long now = System.currentTimeMillis();
+        boolean doubleClick = lastHeaderClickedNote == note && now - lastHeaderClickAt <= HEADER_DOUBLE_CLICK_MS;
+        lastHeaderClickedNote = note;
+        lastHeaderClickAt = now;
+        return doubleClick;
     }
 
     private void refreshButtonStates() {
@@ -742,19 +895,19 @@ public final class WorkspaceOverlayScreen extends Screen {
         hideButton.active = hasSelection;
         lockButton.active = hasSelection;
         deleteButton.active = hasSelection;
-        scaleDownButton.active = hasSelection;
-        scaleUpButton.active = hasSelection;
-        opacityDownButton.active = hasSelection;
-        opacityUpButton.active = hasSelection;
-        headingButton.active = hasSelection;
-        boldButton.active = hasSelection;
-        italicButton.active = hasSelection;
-        listButton.active = hasSelection;
-        quoteButton.active = hasSelection;
-        codeButton.active = hasSelection;
+        scaleDownButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.SETTINGS);
+        scaleUpButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.SETTINGS);
+        opacityDownButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.SETTINGS);
+        opacityUpButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.SETTINGS);
+        headingButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.EDITOR);
+        boldButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.EDITOR);
+        italicButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.EDITOR);
+        listButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.EDITOR);
+        quoteButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.EDITOR);
+        codeButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.EDITOR);
 
         for (Button swatchButton : swatchButtons) {
-            swatchButton.active = hasSelection;
+            swatchButton.active = hasSelection && isPanelExpanded(WorkspaceOverlayPanel.SETTINGS);
         }
 
         hideButton.setMessage(Component.literal(hasSelection && selectedNote.isHidden() ? "Unhide" : "Hide"));
@@ -780,13 +933,14 @@ public final class WorkspaceOverlayScreen extends Screen {
         note.setY(clamp(note.getY(), TOP_BAR_HEIGHT + 4.0F - note.getRenderedHeight() + visibleHeight, height - visibleHeight - 8.0F));
     }
 
-    private void clampPanelToViewport(WorkspaceOverlayLayoutState.PanelLayout layout) {
-        int maxWidth = Math.max(220, width - 24);
-        int maxHeight = Math.max(PANEL_HEADER_HEIGHT + 60, height - TOP_BAR_HEIGHT - 16);
-        layout.setWidth(Math.min(layout.getWidth(), maxWidth));
-        layout.setHeight(Math.min(layout.getHeight(), maxHeight));
+    private void clampPanelToViewport(WorkspaceOverlayPanel panel, WorkspaceOverlayLayoutState.PanelLayout layout) {
+        int maxWidth = Math.max(panelMinWidth(panel), width - 24);
+        int maxHeight = Math.max(panelMinHeight(panel), height - TOP_BAR_HEIGHT - 16);
+        layout.setWidth(Math.max(panelMinWidth(panel), Math.min(layout.getWidth(), maxWidth)));
+        layout.setHeight(Math.max(panelMinHeight(panel), Math.min(layout.getHeight(), maxHeight)));
+        int visibleHeight = panelVisibleHeight(layout);
         layout.setX(Math.round(clamp(layout.getX(), 8 - layout.getWidth() + PANEL_EDGE_VISIBILITY, width - PANEL_EDGE_VISIBILITY - 8)));
-        layout.setY(Math.round(clamp(layout.getY(), TOP_BAR_HEIGHT + 4, height - PANEL_HEADER_HEIGHT - 8)));
+        layout.setY(Math.round(clamp(layout.getY(), TOP_BAR_HEIGHT + 4, height - visibleHeight - 8)));
     }
 
     private WorkspaceNote firstAvailableNote() {
@@ -810,7 +964,7 @@ public final class WorkspaceOverlayScreen extends Screen {
         for (int index = orderedPanels.size() - 1; index >= 0; index--) {
             WorkspaceOverlayPanel panel = orderedPanels.get(index);
             WorkspaceOverlayLayoutState.PanelLayout layout = panelLayout(panel);
-            if (layout != null && layout.contains(mouseX, mouseY)) {
+            if (layout != null && panelContains(layout, mouseX, mouseY)) {
                 return panel;
             }
         }
@@ -822,6 +976,9 @@ public final class WorkspaceOverlayScreen extends Screen {
     }
 
     private NoteRowHit findNoteRowHit(double mouseX, double mouseY) {
+        if (!overlayLayout.isNoteDrawerOpen()) {
+            return null;
+        }
         int rowWidth = SIDEBAR_RIGHT - 24;
         int y = 122;
 
@@ -859,6 +1016,80 @@ public final class WorkspaceOverlayScreen extends Screen {
         return Math.round(value / SNAP_SIZE) * SNAP_SIZE;
     }
 
+    private void renderDrawerToggle(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        int left = SIDEBAR_X;
+        int top = TOP_BAR_HEIGHT + 8;
+        boolean hovered = isDrawerToggleHit(mouseX, mouseY);
+        guiGraphics.fill(left, top, left + DRAWER_TOGGLE_WIDTH, top + DRAWER_TOGGLE_HEIGHT, hovered ? 0xC02A3A4E : 0xA01F2B39);
+        guiGraphics.drawString(font, Component.literal(overlayLayout.isNoteDrawerOpen() ? "Hide Notes" : "Show Notes"), left + 8, top + 6, 0xFFF5F7FA, false);
+    }
+
+    private boolean isDrawerToggleHit(double mouseX, double mouseY) {
+        int left = SIDEBAR_X;
+        int top = TOP_BAR_HEIGHT + 8;
+        return mouseX >= left && mouseX <= left + DRAWER_TOGGLE_WIDTH && mouseY >= top && mouseY <= top + DRAWER_TOGGLE_HEIGHT;
+    }
+
+    private boolean isDrawerBodyHit(double mouseX, double mouseY) {
+        return mouseX >= SIDEBAR_X && mouseX <= SIDEBAR_RIGHT && mouseY >= 36 && mouseY <= height - 8;
+    }
+
+    private boolean isPanelExpanded(WorkspaceOverlayPanel panel) {
+        WorkspaceOverlayLayoutState.PanelLayout layout = panelLayout(panel);
+        return layout != null && !layout.isMinimized();
+    }
+
+    private void setWidgetVisible(AbstractWidget widget, boolean visible) {
+        widget.visible = visible;
+        if (!visible) {
+            widget.setFocused(false);
+        }
+    }
+
+    private int panelVisibleHeight(WorkspaceOverlayLayoutState.PanelLayout layout) {
+        return layout.isMinimized() ? PANEL_HEADER_HEIGHT : layout.getHeight();
+    }
+
+    private int panelBottom(WorkspaceOverlayLayoutState.PanelLayout layout) {
+        return layout.getY() + panelVisibleHeight(layout);
+    }
+
+    private boolean panelContains(WorkspaceOverlayLayoutState.PanelLayout layout, double mouseX, double mouseY) {
+        return mouseX >= layout.getX() && mouseX <= layout.right() && mouseY >= layout.getY() && mouseY <= panelBottom(layout);
+    }
+
+    private boolean panelHeaderContains(WorkspaceOverlayLayoutState.PanelLayout layout, double mouseX, double mouseY) {
+        return mouseX >= layout.getX() && mouseX <= layout.right() && mouseY >= layout.getY() && mouseY <= layout.getY() + PANEL_HEADER_HEIGHT;
+    }
+
+    private boolean isPanelMinimizeHit(WorkspaceOverlayLayoutState.PanelLayout layout, double mouseX, double mouseY) {
+        int left = layout.right() - PANEL_CONTROL_SIZE - 8;
+        int top = layout.getY() + 4;
+        return mouseX >= left && mouseX <= left + PANEL_CONTROL_SIZE && mouseY >= top && mouseY <= top + PANEL_CONTROL_SIZE;
+    }
+
+    private boolean isPanelResizeHandleHit(WorkspaceOverlayLayoutState.PanelLayout layout, double mouseX, double mouseY) {
+        int bottom = panelBottom(layout);
+        return mouseX >= layout.right() - PANEL_RESIZE_HANDLE_SIZE && mouseX <= layout.right()
+            && mouseY >= bottom - PANEL_RESIZE_HANDLE_SIZE && mouseY <= bottom;
+    }
+
+    private int panelMinWidth(WorkspaceOverlayPanel panel) {
+        return switch (panel) {
+            case SETTINGS -> 300;
+            case EDITOR -> 320;
+            case PREVIEW -> 280;
+        };
+    }
+
+    private int panelMinHeight(WorkspaceOverlayPanel panel) {
+        return switch (panel) {
+            case SETTINGS -> 220;
+            case EDITOR -> 188;
+            case PREVIEW -> 176;
+        };
+    }
+
     private float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
     }
@@ -889,7 +1120,8 @@ public final class WorkspaceOverlayScreen extends Screen {
 
     private enum PanelInteractionMode {
         NONE,
-        DRAG
+        DRAG,
+        RESIZE
     }
 
     private record NoteRowHit(WorkspaceNote note, boolean visibilityToggle) {

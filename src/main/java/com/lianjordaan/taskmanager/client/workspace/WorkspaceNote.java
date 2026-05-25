@@ -7,10 +7,11 @@ public final class WorkspaceNote {
     private static final int DEFAULT_GLOBAL_TINT = 0x58BFD7;
     private static final int DEFAULT_CONTEXT_TINT = 0xF0B96B;
     private static final float DEFAULT_CARD_OPACITY = 0.90F;
-    private static final float MIN_CARD_OPACITY = 0.20F;
+    private static final float MIN_CARD_OPACITY = 0.10F;
 
     private final UUID id;
     private final WorkspaceScope scope;
+    private String title;
     private String content;
     private float x;
     private float y;
@@ -36,7 +37,24 @@ public final class WorkspaceNote {
         boolean locked,
         long zIndex
     ) {
-        this(id, scope, content, x, y, width, height, scale, hidden, locked, zIndex, defaultTintColor(scope), DEFAULT_CARD_OPACITY);
+        this(id, scope, null, content, x, y, width, height, scale, hidden, locked, zIndex, defaultTintColor(scope), DEFAULT_CARD_OPACITY);
+    }
+
+    public WorkspaceNote(
+        UUID id,
+        WorkspaceScope scope,
+        String title,
+        String content,
+        float x,
+        float y,
+        float width,
+        float height,
+        float scale,
+        boolean hidden,
+        boolean locked,
+        long zIndex
+    ) {
+        this(id, scope, title, content, x, y, width, height, scale, hidden, locked, zIndex, defaultTintColor(scope), DEFAULT_CARD_OPACITY);
     }
 
     public WorkspaceNote(
@@ -54,8 +72,28 @@ public final class WorkspaceNote {
         int tintColor,
         float cardOpacity
     ) {
+        this(id, scope, null, content, x, y, width, height, scale, hidden, locked, zIndex, tintColor, cardOpacity);
+    }
+
+    public WorkspaceNote(
+        UUID id,
+        WorkspaceScope scope,
+        String title,
+        String content,
+        float x,
+        float y,
+        float width,
+        float height,
+        float scale,
+        boolean hidden,
+        boolean locked,
+        long zIndex,
+        int tintColor,
+        float cardOpacity
+    ) {
         this.id = id;
         this.scope = scope;
+        this.title = normalizeTitle(title);
         this.content = content == null ? "" : content;
         this.x = x;
         this.y = y;
@@ -87,6 +125,14 @@ public final class WorkspaceNote {
 
     public String getContent() {
         return content;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = normalizeTitle(title);
     }
 
     public void setContent(String content) {
@@ -174,19 +220,32 @@ public final class WorkspaceNote {
     }
 
     public int getRenderedWidth() {
-        return Math.max(160, Math.round(width * scale));
+        return Math.max(1, Math.round(width * scale));
     }
 
     public int getRenderedHeight() {
-        return Math.max(96, Math.round(height * scale));
+        return Math.max(1, Math.round(height * scale));
+    }
+
+    public String getDisplayTitle() {
+        if (!title.isBlank()) {
+            return title;
+        }
+
+        String derivedTitle = deriveTitleFromContent(content);
+        return derivedTitle.isBlank() ? EMPTY_SUMMARY : derivedTitle;
     }
 
     public String getSummary() {
+        return abbreviate(getDisplayTitle());
+    }
+
+    private static String deriveTitleFromContent(String content) {
         String[] lines = content.split("\\R");
         for (String line : lines) {
             String trimmed = line.replace("#", "").replace("*", "").replace("`", "").trim();
             if (!trimmed.isEmpty()) {
-                return trimmed.length() > 34 ? trimmed.substring(0, 31) + "..." : trimmed;
+                return trimmed;
             }
         }
         return EMPTY_SUMMARY;
@@ -195,6 +254,14 @@ public final class WorkspaceNote {
     private static int normalizeTintColor(int tintColor, WorkspaceScope scope) {
         int normalized = tintColor & 0x00FFFFFF;
         return normalized == 0 ? defaultTintColor(scope) : normalized;
+    }
+
+    private static String normalizeTitle(String title) {
+        return title == null ? "" : title.trim();
+    }
+
+    private static String abbreviate(String value) {
+        return value.length() > 34 ? value.substring(0, 31) + "..." : value;
     }
 
     private static float normalizeCardOpacity(float cardOpacity) {

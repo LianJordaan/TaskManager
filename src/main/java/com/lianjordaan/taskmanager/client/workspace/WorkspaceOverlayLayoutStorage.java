@@ -30,6 +30,7 @@ public final class WorkspaceOverlayLayoutStorage {
             }
 
             state.setSnapToGrid(storedLayout.snapToGrid == null || storedLayout.snapToGrid);
+            state.setNoteDrawerOpen(storedLayout.noteDrawerOpen != null && storedLayout.noteDrawerOpen);
             state.setNextPanelZIndex(storedLayout.nextPanelZIndex == null ? 1L : storedLayout.nextPanelZIndex);
             if (storedLayout.panels != null) {
                 for (StoredPanel panel : storedLayout.panels) {
@@ -45,6 +46,10 @@ public final class WorkspaceOverlayLayoutStorage {
                             panel.height == null ? 0 : panel.height,
                             panel.zIndex == null ? 0L : panel.zIndex
                         ));
+                        WorkspaceOverlayLayoutState.PanelLayout layout = state.getPanel(panelId);
+                        if (layout != null) {
+                            layout.setMinimized(panel.minimized != null && panel.minimized);
+                        }
                     } catch (IllegalArgumentException ignored) {
                     }
                 }
@@ -61,8 +66,9 @@ public final class WorkspaceOverlayLayoutStorage {
             Files.createDirectories(path.getParent());
 
             StoredOverlayLayout storedLayout = new StoredOverlayLayout();
-            storedLayout.version = 1;
+            storedLayout.version = 2;
             storedLayout.snapToGrid = state.isSnapToGrid();
+            storedLayout.noteDrawerOpen = state.isNoteDrawerOpen();
             storedLayout.nextPanelZIndex = state.getNextPanelZIndex();
             storedLayout.panels = new StoredPanel[WorkspaceOverlayPanel.values().length];
 
@@ -76,6 +82,7 @@ public final class WorkspaceOverlayLayoutStorage {
                     storedPanel.y = layout.getY();
                     storedPanel.width = layout.getWidth();
                     storedPanel.height = layout.getHeight();
+                    storedPanel.minimized = layout.isMinimized();
                     storedPanel.zIndex = layout.getZIndex();
                 }
                 storedLayout.panels[index++] = storedPanel;
@@ -92,6 +99,7 @@ public final class WorkspaceOverlayLayoutStorage {
     private static final class StoredOverlayLayout {
         private int version;
         private Boolean snapToGrid;
+        private Boolean noteDrawerOpen;
         private Long nextPanelZIndex;
         private StoredPanel[] panels;
     }
@@ -102,6 +110,7 @@ public final class WorkspaceOverlayLayoutStorage {
         private Integer y;
         private Integer width;
         private Integer height;
+        private Boolean minimized;
         private Long zIndex;
     }
 }

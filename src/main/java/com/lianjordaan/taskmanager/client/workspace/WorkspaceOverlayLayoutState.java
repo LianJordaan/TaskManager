@@ -9,6 +9,7 @@ import java.util.Map;
 public final class WorkspaceOverlayLayoutState {
     private final EnumMap<WorkspaceOverlayPanel, PanelLayout> panels = new EnumMap<>(WorkspaceOverlayPanel.class);
     private boolean snapToGrid = true;
+    private boolean noteDrawerOpen;
     private long nextPanelZIndex = 1L;
 
     public boolean isSnapToGrid() {
@@ -17,6 +18,14 @@ public final class WorkspaceOverlayLayoutState {
 
     public void setSnapToGrid(boolean snapToGrid) {
         this.snapToGrid = snapToGrid;
+    }
+
+    public boolean isNoteDrawerOpen() {
+        return noteDrawerOpen;
+    }
+
+    public void setNoteDrawerOpen(boolean noteDrawerOpen) {
+        this.noteDrawerOpen = noteDrawerOpen;
     }
 
     public PanelLayout getPanel(WorkspaceOverlayPanel panel) {
@@ -31,8 +40,12 @@ public final class WorkspaceOverlayLayoutState {
             return layout;
         }
 
-        layout.setWidth(width);
-        layout.setHeight(height);
+        if (layout.getWidth() <= 0) {
+            layout.setWidth(width);
+        }
+        if (layout.getHeight() <= 0) {
+            layout.setHeight(height);
+        }
         if (layout.getZIndex() <= 0L) {
             layout.setZIndex(nextPanelZIndex++);
         }
@@ -78,6 +91,7 @@ public final class WorkspaceOverlayLayoutState {
         private int y;
         private int width;
         private int height;
+        private boolean minimized;
         private long zIndex;
 
         public PanelLayout() {
@@ -129,6 +143,14 @@ public final class WorkspaceOverlayLayoutState {
 
         public void setZIndex(long zIndex) {
             this.zIndex = zIndex;
+        }
+
+        public boolean isMinimized() {
+            return minimized;
+        }
+
+        public void setMinimized(boolean minimized) {
+            this.minimized = minimized;
         }
 
         public int right() {
