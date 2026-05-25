@@ -12,6 +12,9 @@
   "entrypoints": {
     "main": [
       "com.lianjordaan.taskmanager.TaskManager"
+    ],
+    "client": [
+      "com.lianjordaan.taskmanager.client.TaskManagerClient"
     ]
   },
   "depends": {

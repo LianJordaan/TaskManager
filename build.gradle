@@ -45,8 +45,12 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
 
     sourceSets {
         main {
+            def compatJavaDir = mc.minecraft.startsWith('1.20')
+                ? rootProject.file('src/compat_1_20/java')
+                : rootProject.file('src/compat_1_21/java')
             java.setSrcDirs([
                 rootProject.file('src/main/java'),
+                compatJavaDir,
                 project.file('src/main/java')
             ])
             resources.setSrcDirs([
@@ -99,6 +103,17 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
         }
 
         repositories {
+        }
+    }
+}
+
+tasks.register('printVersionModules') {
+    group = 'help'
+    description = 'Prints version modules as module|minecraftVersion for external tooling.'
+
+    doLast {
+        rootProject.versionMatrix.each { moduleName, moduleConfig ->
+            println("${moduleName}|${moduleConfig.minecraft}")
         }
     }
 }
