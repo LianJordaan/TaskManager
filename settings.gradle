@@ -32,6 +32,11 @@ rootProject.name = 'taskmanager'
     '1.21.11'
 ].each { mcVersion ->
     def moduleName = "mc${mcVersion.replace('.', '_')}"
+    def projectDirectory = file("versions/${mcVersion}")
+    if (!projectDirectory.exists() && !projectDirectory.mkdirs()) {
+        throw new GradleException("Failed to create project directory for ${moduleName}: ${projectDirectory}")
+    }
+
     include(moduleName)
-    project(":${moduleName}").projectDir = file("versions/${mcVersion}")
+    project(":${moduleName}").projectDir = projectDirectory
 }
