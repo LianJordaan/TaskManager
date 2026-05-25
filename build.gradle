@@ -1,63 +1,104 @@
 plugins {
-    id 'java'
-    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
-    id 'maven-publish'
+    id 'base'
+    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}" apply false
 }
 
-version = project.mod_version
-group = project.maven_group
+ext.versionMatrix = [
+    mc1_20_1 : [minecraft: '1.20.1', fabricApi: '0.92.9+1.20.1'],
+    mc1_20_2 : [minecraft: '1.20.2', fabricApi: '0.91.6+1.20.2'],
+    mc1_20_3 : [minecraft: '1.20.3', fabricApi: '0.91.1+1.20.3'],
+    mc1_20_4 : [minecraft: '1.20.4', fabricApi: '0.97.3+1.20.4'],
+    mc1_20_5 : [minecraft: '1.20.5', fabricApi: '0.97.8+1.20.5'],
+    mc1_20_6 : [minecraft: '1.20.6', fabricApi: '0.100.8+1.20.6'],
+    mc1_21   : [minecraft: '1.21', fabricApi: '0.102.0+1.21'],
+    mc1_21_1 : [minecraft: '1.21.1', fabricApi: '0.116.12+1.21.1'],
+    mc1_21_2 : [minecraft: '1.21.2', fabricApi: '0.106.1+1.21.2'],
+    mc1_21_3 : [minecraft: '1.21.3', fabricApi: '0.114.1+1.21.3'],
+    mc1_21_4 : [minecraft: '1.21.4', fabricApi: '0.119.4+1.21.4'],
+    mc1_21_5 : [minecraft: '1.21.5', fabricApi: '0.128.2+1.21.5'],
+    mc1_21_6 : [minecraft: '1.21.6', fabricApi: '0.128.2+1.21.6'],
+    mc1_21_7 : [minecraft: '1.21.7', fabricApi: '0.129.0+1.21.7'],
+    mc1_21_8 : [minecraft: '1.21.8', fabricApi: '0.136.1+1.21.8'],
+    mc1_21_9 : [minecraft: '1.21.9', fabricApi: '0.134.1+1.21.9'],
+    mc1_21_10: [minecraft: '1.21.10', fabricApi: '0.138.4+1.21.10'],
+    mc1_21_11: [minecraft: '1.21.11', fabricApi: '0.141.4+1.21.11']
+]
 
-base {
-    archivesName = project.archives_base_name
-}
+configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }) {
+    apply plugin: 'java'
+    apply plugin: 'net.fabricmc.fabric-loom-remap'
+    apply plugin: 'maven-publish'
 
-repositories {
-    mavenCentral()
-}
+    def mc = rootProject.versionMatrix[project.name]
+    def modBuildVersion = "${rootProject.mod_version}+mc${mc.minecraft}"
 
-loom {
-    splitEnvironmentSourceSets()
+    version = rootProject.mod_version
+    group = rootProject.maven_group
 
-    mods {
-        taskmanager {
-            sourceSet sourceSets.main
-        }
-    }
-}
-
-dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings loom.officialMojangMappings()
-    modImplementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-}
-
-processResources {
-    def version = project.version
-    inputs.property 'version', version
-
-    filesMatching('fabric.mod.json') {
-        expand 'version': version
-    }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    it.options.encoding = 'UTF-8'
-    it.options.release = 17
-}
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
-}
-
-publishing {
-    publications {
-        create('mavenJava', MavenPublication) {
-            from components.java
-        }
+    base {
+        archivesName = "${rootProject.archives_base_name}-${mc.minecraft}"
     }
 
     repositories {
+        mavenCentral()
+    }
+
+    sourceSets {
+        main {
+            java.setSrcDirs([
+                rootProject.file('src/main/java'),
+                project.file('src/main/java')
+            ])
+            resources.setSrcDirs([
+                project.file('src/main/resources'),
+                rootProject.file('src/main/resources')
+            ])
+        }
+    }
+
+    dependencies {
+        minecraft "com.mojang:minecraft:${mc.minecraft}"
+        mappings loom.officialMojangMappings()
+        modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+        modImplementation "net.fabricmc.fabric-api:fabric-api:${mc.fabricApi}"
+    }
+
+    processResources {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        inputs.property 'version', modBuildVersion
+        inputs.property 'minecraft_version', mc.minecraft
+        inputs.property 'fabric_loader_version', rootProject.fabric_loader_version
+        inputs.property 'fabric_api_version', mc.fabricApi
+
+        filesMatching('fabric.mod.json') {
+            expand(
+                version: modBuildVersion,
+                minecraft_version: mc.minecraft,
+                fabric_loader_version: rootProject.fabric_loader_version,
+                fabric_api_version: mc.fabricApi
+            )
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        it.options.encoding = 'UTF-8'
+        it.options.release = 17
+    }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    publishing {
+        publications {
+            create('mavenJava', MavenPublication) {
+                artifactId = base.archivesName.get()
+                from components.java
+            }
+        }
+
+        repositories {
+        }
     }
 }

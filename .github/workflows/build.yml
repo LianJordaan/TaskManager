@@ -10,6 +10,46 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: mc1_20_1
+            minecraft: 1.20.1
+          - module: mc1_20_2
+            minecraft: 1.20.2
+          - module: mc1_20_3
+            minecraft: 1.20.3
+          - module: mc1_20_4
+            minecraft: 1.20.4
+          - module: mc1_20_5
+            minecraft: 1.20.5
+          - module: mc1_20_6
+            minecraft: 1.20.6
+          - module: mc1_21
+            minecraft: 1.21
+          - module: mc1_21_1
+            minecraft: 1.21.1
+          - module: mc1_21_2
+            minecraft: 1.21.2
+          - module: mc1_21_3
+            minecraft: 1.21.3
+          - module: mc1_21_4
+            minecraft: 1.21.4
+          - module: mc1_21_5
+            minecraft: 1.21.5
+          - module: mc1_21_6
+            minecraft: 1.21.6
+          - module: mc1_21_7
+            minecraft: 1.21.7
+          - module: mc1_21_8
+            minecraft: 1.21.8
+          - module: mc1_21_9
+            minecraft: 1.21.9
+          - module: mc1_21_10
+            minecraft: 1.21.10
+          - module: mc1_21_11
+            minecraft: 1.21.11
 
     steps:
       - name: Check out repository
@@ -28,14 +68,15 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      - name: Build mod
-        run: ./gradlew clean build
+      - name: Build version jar
+        run: ./gradlew :${{ matrix.module }}:clean :${{ matrix.module }}:build --configure-on-demand --console=plain --no-daemon
 
-      - name: Upload Fabric mod jar
+      - name: Upload version jar
         uses: actions/upload-artifact@v4
         with:
-          name: taskmanager-fabric
+          name: taskmanager-fabric-${{ matrix.minecraft }}
           path: |
-            build/libs/*.jar
-            !build/libs/*-sources.jar
+            versions/${{ matrix.minecraft }}/build/libs/*.jar
+            !versions/${{ matrix.minecraft }}/build/libs/*-sources.jar
+            !versions/${{ matrix.minecraft }}/build/libs/*-dev.jar
           if-no-files-found: error
