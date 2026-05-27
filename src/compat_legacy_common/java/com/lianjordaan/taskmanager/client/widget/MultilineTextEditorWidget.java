@@ -263,8 +263,8 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
         int right = left + width;
         int bottom = top + height;
 
+        guiGraphics.fill(left - 1, top - 1, right + 1, bottom + 1, isFocused() ? 0xA071C8FF : 0x6039495B);
         guiGraphics.fill(left, top, right, bottom, 0xE918202C);
-        guiGraphics.fill(left - 1, top - 1, right + 1, bottom + 1, isFocused() ? 0xFF7CE2C2 : 0x6039495B);
 
         List<String> lines = getLines();
         int visibleLines = visibleLineCount();
@@ -541,7 +541,7 @@ public final class MultilineTextEditorWidget extends AbstractWidget {
                         selectionRight = left + 6 + font.width(lineText);
                     }
                     int selectionTop = top + 6 + (lineIndex - scrollOffset) * font.lineHeight;
-                    guiGraphics.fill(selectionLeft, selectionTop - 1, Math.max(selectionLeft + 1, selectionRight), selectionTop + font.lineHeight - 1, 0x803A89C9);
+                    guiGraphics.fill(selectionLeft, selectionTop - 1, Math.max(selectionLeft + 1, selectionRight), selectionTop + font.lineHeight - 1, 0x503A6F95);
                 }
             }
 
