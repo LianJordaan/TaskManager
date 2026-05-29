@@ -31,6 +31,7 @@ public final class WorkspaceOverlayLayoutStorage {
 
             state.setSnapToGrid(storedLayout.snapToGrid == null || storedLayout.snapToGrid);
             state.setNoteDrawerOpen(storedLayout.noteDrawerOpen != null && storedLayout.noteDrawerOpen);
+            state.setTopBarCollapsed(storedLayout.topBarCollapsed != null && storedLayout.topBarCollapsed);
             state.setNextPanelZIndex(storedLayout.nextPanelZIndex == null ? 1L : storedLayout.nextPanelZIndex);
             if (storedLayout.panels != null) {
                 for (StoredPanel panel : storedLayout.panels) {
@@ -66,9 +67,10 @@ public final class WorkspaceOverlayLayoutStorage {
             Files.createDirectories(path.getParent());
 
             StoredOverlayLayout storedLayout = new StoredOverlayLayout();
-            storedLayout.version = 2;
+            storedLayout.version = 3;
             storedLayout.snapToGrid = state.isSnapToGrid();
             storedLayout.noteDrawerOpen = state.isNoteDrawerOpen();
+            storedLayout.topBarCollapsed = state.isTopBarCollapsed();
             storedLayout.nextPanelZIndex = state.getNextPanelZIndex();
             storedLayout.panels = new StoredPanel[WorkspaceOverlayPanel.values().length];
 
@@ -100,6 +102,7 @@ public final class WorkspaceOverlayLayoutStorage {
         private int version;
         private Boolean snapToGrid;
         private Boolean noteDrawerOpen;
+        private Boolean topBarCollapsed;
         private Long nextPanelZIndex;
         private StoredPanel[] panels;
     }

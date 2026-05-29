@@ -10,6 +10,7 @@ public final class WorkspaceOverlayLayoutState {
     private final EnumMap<WorkspaceOverlayPanel, PanelLayout> panels = new EnumMap<>(WorkspaceOverlayPanel.class);
     private boolean snapToGrid = true;
     private boolean noteDrawerOpen;
+    private boolean topBarCollapsed;
     private long nextPanelZIndex = 1L;
 
     public boolean isSnapToGrid() {
@@ -26,6 +27,14 @@ public final class WorkspaceOverlayLayoutState {
 
     public void setNoteDrawerOpen(boolean noteDrawerOpen) {
         this.noteDrawerOpen = noteDrawerOpen;
+    }
+
+    public boolean isTopBarCollapsed() {
+        return topBarCollapsed;
+    }
+
+    public void setTopBarCollapsed(boolean topBarCollapsed) {
+        this.topBarCollapsed = topBarCollapsed;
     }
 
     public PanelLayout getPanel(WorkspaceOverlayPanel panel) {

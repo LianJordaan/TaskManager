@@ -9,6 +9,9 @@ import net.minecraft.util.Mth;
 public final class WorkspaceNoteRenderer {
     public static final int HEADER_HEIGHT = 22;
     public static final int RESIZE_HANDLE_SIZE = 10;
+    private static final int ACTION_BUTTON_SIZE = 12;
+    private static final int ACTION_BUTTON_GAP = 3;
+    private static final int ACTION_BUTTON_COUNT = 3;
     private static final int BASE_TEXT_COLOR = 0xFFF9FCFF;
     private static final int SELECTED_OUTLINE = 0xFF71C8FF;
 
@@ -16,6 +19,10 @@ public final class WorkspaceNoteRenderer {
     }
 
     public static void render(GuiGraphics guiGraphics, Font font, WorkspaceNote note, boolean overlayMode, boolean selected) {
+        render(guiGraphics, font, note, overlayMode, selected, false);
+    }
+
+    public static void render(GuiGraphics guiGraphics, Font font, WorkspaceNote note, boolean overlayMode, boolean selected, boolean showActions) {
         int x = Math.round(note.getX());
         int y = Math.round(note.getY());
         int width = Math.max(160, Math.round(note.getWidth()));
@@ -28,7 +35,8 @@ public final class WorkspaceNoteRenderer {
         int divider = withAlpha(blend(surfaceRgb, tint, 0.42F), 72);
         int textAlpha = overlayMode && note.isHidden() ? 144 : 255;
         int scopeLabelWidth = font.width(note.getScope() == WorkspaceScope.GLOBAL ? "GLOBAL" : "CONTEXT");
-        int titleWidth = Math.max(40, width - scopeLabelWidth - 22);
+        int actionWidth = showActions ? actionStripWidth() + 8 : 0;
+        int titleWidth = Math.max(40, width - scopeLabelWidth - actionWidth - 22);
 
         WorkspaceRenderCompat.pushTranslateScale(guiGraphics, x, y, note.getScale());
 
@@ -40,13 +48,17 @@ public final class WorkspaceNoteRenderer {
         guiGraphics.drawString(font, trimToWidth(font, note.getDisplayTitle(), titleWidth), 8, 7, withAlpha(BASE_TEXT_COLOR, textAlpha), false);
         guiGraphics.drawString(font, note.getScope() == WorkspaceScope.GLOBAL ? "GLOBAL" : "CONTEXT", width - scopeLabelWidth - 8, 7, withAlpha(BASE_TEXT_COLOR, textAlpha), false);
 
-        int badgeX = width - scopeLabelWidth - 28;
-        if (note.isHidden()) {
-            guiGraphics.drawString(font, "H", badgeX, 7, withAlpha(0xFFD5E7FF, textAlpha), false);
-            badgeX -= 12;
-        }
-        if (note.isLocked()) {
-            guiGraphics.drawString(font, "L", badgeX, 7, withAlpha(0xFFD5E7FF, textAlpha), false);
+        if (showActions) {
+            renderActionButtons(guiGraphics, width, scopeLabelWidth, note, textAlpha);
+        } else {
+            int badgeX = width - scopeLabelWidth - 28;
+            if (note.isHidden()) {
+                guiGraphics.drawString(font, "H", badgeX, 7, withAlpha(0xFFD5E7FF, textAlpha), false);
+                badgeX -= 12;
+            }
+            if (note.isLocked()) {
+                guiGraphics.drawString(font, "L", badgeX, 7, withAlpha(0xFFD5E7FF, textAlpha), false);
+            }
         }
 
         MarkdownRenderer.render(guiGraphics, font, note.getContent(), 10, HEADER_HEIGHT + 8, width - 18, height - HEADER_HEIGHT - 16, textAlpha);
@@ -86,8 +98,88 @@ public final class WorkspaceNoteRenderer {
             && mouseY >= y + height - handleSize && mouseY <= y + height;
     }
 
+    public static boolean isHideButtonHit(WorkspaceNote note, Font font, double mouseX, double mouseY) {
+        return isActionButtonHit(note, font, mouseX, mouseY, 0);
+    }
+
+    public static boolean isLockButtonHit(WorkspaceNote note, Font font, double mouseX, double mouseY) {
+        return isActionButtonHit(note, font, mouseX, mouseY, 1);
+    }
+
+    public static boolean isDeleteButtonHit(WorkspaceNote note, Font font, double mouseX, double mouseY) {
+        return isActionButtonHit(note, font, mouseX, mouseY, 2);
+    }
+
+    public static int getRenderedActionStripWidth(WorkspaceNote note) {
+        return Math.max(1, Math.round(actionStripWidth() * note.getScale()));
+    }
+
     public static int getRenderedHeaderHeight(WorkspaceNote note) {
         return Math.max(14, Math.round(HEADER_HEIGHT * note.getScale()));
+    }
+
+    private static void renderActionButtons(GuiGraphics guiGraphics, int width, int scopeLabelWidth, WorkspaceNote note, int textAlpha) {
+        int left = actionStripLeft(width, scopeLabelWidth);
+        int top = 5;
+        renderHideIcon(guiGraphics, left, top, note.isHidden(), textAlpha);
+        renderLockIcon(guiGraphics, left + ACTION_BUTTON_SIZE + ACTION_BUTTON_GAP, top, note.isLocked(), textAlpha);
+        renderDeleteIcon(guiGraphics, left + (ACTION_BUTTON_SIZE + ACTION_BUTTON_GAP) * 2, top, textAlpha);
+    }
+
+    private static void renderHideIcon(GuiGraphics guiGraphics, int left, int top, boolean hidden, int textAlpha) {
+        renderActionBackground(guiGraphics, left, top, hidden ? 0x74546A7F : 0x54384A5F);
+        int color = withAlpha(0xFFE8F4FF, textAlpha);
+        guiGraphics.fill(left + 2, top + 5, left + 10, top + 7, color);
+        guiGraphics.fill(left + 5, top + 3, left + 7, top + 9, color);
+        if (hidden) {
+            for (int step = 0; step < 8; step++) {
+                guiGraphics.fill(left + 2 + step, top + 9 - step, left + 3 + step, top + 10 - step, color);
+            }
+        }
+    }
+
+    private static void renderLockIcon(GuiGraphics guiGraphics, int left, int top, boolean locked, int textAlpha) {
+        renderActionBackground(guiGraphics, left, top, locked ? 0x746B5A34 : 0x54384A5F);
+        int color = withAlpha(0xFFFFF1C6, textAlpha);
+        guiGraphics.fill(left + 3, top + 6, left + 9, top + 10, color);
+        guiGraphics.fill(left + 4, top + 3, left + 8, top + 5, color);
+        guiGraphics.fill(left + 3, top + 4, left + 4, top + 7, color);
+        guiGraphics.fill(left + 8, top + 4, left + 9, top + 7, color);
+    }
+
+    private static void renderDeleteIcon(GuiGraphics guiGraphics, int left, int top, int textAlpha) {
+        renderActionBackground(guiGraphics, left, top, 0x62563A43);
+        int color = withAlpha(0xFFFFD8DD, textAlpha);
+        for (int step = 0; step < 7; step++) {
+            guiGraphics.fill(left + 3 + step, top + 3 + step, left + 4 + step, top + 4 + step, color);
+            guiGraphics.fill(left + 9 - step, top + 3 + step, left + 10 - step, top + 4 + step, color);
+        }
+    }
+
+    private static void renderActionBackground(GuiGraphics guiGraphics, int left, int top, int fill) {
+        guiGraphics.fill(left, top, left + ACTION_BUTTON_SIZE, top + ACTION_BUTTON_SIZE, fill);
+        guiGraphics.fill(left, top, left + ACTION_BUTTON_SIZE, top + 1, 0x48FFFFFF);
+    }
+
+    private static boolean isActionButtonHit(WorkspaceNote note, Font font, double mouseX, double mouseY, int index) {
+        int x = Math.round(note.getX());
+        int y = Math.round(note.getY());
+        float scale = Math.max(0.01F, note.getScale());
+        double localX = (mouseX - x) / scale;
+        double localY = (mouseY - y) / scale;
+        int width = Math.max(160, Math.round(note.getWidth()));
+        int scopeLabelWidth = font.width(note.getScope() == WorkspaceScope.GLOBAL ? "GLOBAL" : "CONTEXT");
+        int left = actionStripLeft(width, scopeLabelWidth) + index * (ACTION_BUTTON_SIZE + ACTION_BUTTON_GAP);
+        int top = 5;
+        return localX >= left && localX <= left + ACTION_BUTTON_SIZE && localY >= top && localY <= top + ACTION_BUTTON_SIZE;
+    }
+
+    private static int actionStripLeft(int width, int scopeLabelWidth) {
+        return width - scopeLabelWidth - 14 - actionStripWidth();
+    }
+
+    private static int actionStripWidth() {
+        return ACTION_BUTTON_COUNT * ACTION_BUTTON_SIZE + (ACTION_BUTTON_COUNT - 1) * ACTION_BUTTON_GAP;
     }
 
     private static int withAlpha(int color, int alpha) {
