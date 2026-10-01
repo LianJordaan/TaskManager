@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "taskmanager-private-client-test",
+  "version": "1.0.0",
+  "name": "TaskManager private client test",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": [
+      "com.lianjordaan.taskmanager.test.TaskManagerClientGameTest"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=${test_fabric_loader_version}",
+    "minecraft": "${test_minecraft_version}",
+    "fabric-api": "*",
+    "taskmanager": "*"
+  }
+}

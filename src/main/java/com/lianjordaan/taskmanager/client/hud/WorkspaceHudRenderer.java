@@ -1,21 +1,15 @@
 package com.lianjordaan.taskmanager.client.hud;
 
 import com.lianjordaan.taskmanager.client.render.WorkspaceNoteRenderer;
-import com.lianjordaan.taskmanager.client.screen.WorkspaceOverlayScreen;
 import com.lianjordaan.taskmanager.client.workspace.WorkspaceManager;
 import com.lianjordaan.taskmanager.client.workspace.WorkspaceNote;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 
 public final class WorkspaceHudRenderer {
     private final WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
 
-    public void render(Minecraft client, GuiGraphics guiGraphics, float partialTick) {
-        if (client == null || client.player == null || client.screen != null) {
-            return;
-        }
-
-        if (client.screen instanceof WorkspaceOverlayScreen) {
+    public void render(Minecraft client, Object guiGraphics, float partialTick) {
+        if (client == null || client.player == null || WorkspaceScreenCompat.currentScreen(client) != null) {
             return;
         }
 

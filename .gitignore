@@ -4,6 +4,7 @@ out/
 .idea/
 *.iml
 hs_err*
+versions/*/logs/
 
 # Local secrets (Modrinth token, etc.) — never commit
 .env

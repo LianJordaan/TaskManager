@@ -91,7 +91,7 @@ public final class WorkspaceManager {
         WorkspaceNote note = new WorkspaceNote(
             UUID.randomUUID(),
             scope,
-            "# New note\n\nWrite here...",
+            "# Tasks\n\n- [ ] New task",
             x,
             y,
             noteWidth,

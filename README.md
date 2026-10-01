@@ -1,8 +1,19 @@
 # TaskManager
 
-TaskManager is a client-side Fabric workspace for keeping notes in view while you play. Open the workspace with **O**, or press **N** to open it and create a note. Both keys can be changed in Minecraft's Controls screen.
+TaskManager is a client-side Fabric workspace for keeping tasks and notes in view while you play. Open the workspace with **O**, or press **N** to open it and create a task card. Both keys can be changed in Minecraft's Controls screen.
 
-Notes can belong to your **Global** workspace, which follows you everywhere, or the **Context** workspace for the current singleplayer world or multiplayer server. Drag or resize a note on the overlay; lock it to avoid accidental moves, hide it from the HUD, or change its color, scale and opacity. The editor supports basic Markdown headings, emphasis, lists, quotes and code. The panel layout and note positions are saved automatically.
+Cards can belong to your **Global** workspace, which follows you everywhere, or the **Context** workspace for the current singleplayer world or multiplayer server. Drag or resize a card on the overlay; lock it to avoid accidental moves, hide it from the HUD, or change its color, scale and opacity. Use the **Task** editor button or type `- [ ]` to add a task. Click its checkbox on the card to mark it done or reopen it. The editor also supports basic Markdown headings, emphasis, lists, quotes and code. The panel layout, task state and card positions are saved automatically.
+
+The **+ Global** and **+ Context** buttons make cards for either scope. The editor opens alongside a new card, with card settings collapsed below it; drag the panel headers or use **Reset UI** to restore this layout.
+
+## Screenshots
+
+These are direct, unedited Minecraft client captures from the live 1.21.11 and 26.2 checks:
+
+- [Workspace and editor](docs/screenshots/workspace-editor-1.21.11.png)
+- [Checked task](docs/screenshots/task-checked-1.21.11.png)
+- [In-game HUD](docs/screenshots/in-game-hud-1.21.11.png)
+- [Workspace on 26.2](docs/screenshots/workspace-editor-26.2.png)
 
 ## Your data
 
@@ -10,7 +21,7 @@ TaskManager stores notes locally in `.minecraft/config/taskmanager/global-worksp
 
 ## Building
 
-Use JDK 21 to run Gradle. The existing build matrix targets Minecraft 1.20.1 through 1.21.11, with a separate Fabric JAR for each version:
+Use JDK 25 to run Gradle for the full build matrix. Minecraft 1.20.1 through 1.21.11 use Java 17 bytecode, and Minecraft 26.1 through 26.3 use Java 25 bytecode. Each Minecraft version has a separate Fabric JAR:
 
 ```bash
 ./gradlew build
@@ -21,6 +32,7 @@ To build only one target:
 ```bash
 ./gradlew :mc1_20_1:build
 ./gradlew :mc1_21_11:build
+./gradlew :mc26_3:build
 ```
 
 Shared code is in `src/main`, version compatibility code is in `src/compat_*`, and each JAR is written to `versions/<minecraft-version>/build/libs/`. Build success alone does not establish in-game compatibility; release claims will follow live client tests.

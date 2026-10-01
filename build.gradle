@@ -1,6 +1,7 @@
 plugins {
     id 'base'
     id 'net.fabricmc.fabric-loom-remap' version "${loom_version}" apply false
+    id 'net.fabricmc.fabric-loom' version "${loom_version}" apply false
 }
 
 ext.versionMatrix = [
@@ -21,16 +22,22 @@ ext.versionMatrix = [
     mc1_21_8 : [minecraft: '1.21.8', fabricApi: '0.136.1+1.21.8'],
     mc1_21_9 : [minecraft: '1.21.9', fabricApi: '0.134.1+1.21.9'],
     mc1_21_10: [minecraft: '1.21.10', fabricApi: '0.138.4+1.21.10'],
-    mc1_21_11: [minecraft: '1.21.11', fabricApi: '0.141.4+1.21.11']
+    mc1_21_11: [minecraft: '1.21.11', fabricApi: '0.141.4+1.21.11'],
+    mc26_1   : [minecraft: '26.1', fabricApi: '0.155.3+26.1.2', loader: '0.19.5', java: 25],
+    mc26_1_1 : [minecraft: '26.1.1', fabricApi: '0.155.3+26.1.2', loader: '0.19.5', java: 25],
+    mc26_1_2 : [minecraft: '26.1.2', fabricApi: '0.155.3+26.1.2', loader: '0.19.5', java: 25],
+    mc26_2   : [minecraft: '26.2', fabricApi: '0.161.0+26.2', loader: '0.19.5', java: 25],
+    mc26_3   : [minecraft: '26.3', fabricApi: '0.161.0+26.3', loader: '0.19.5', java: 25]
 ]
 
 configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }) {
     apply plugin: 'java'
-    apply plugin: 'net.fabricmc.fabric-loom-remap'
+    def mc = rootProject.versionMatrix[project.name]
+    def nonObfuscated = mc.minecraft.startsWith('26.')
+    apply plugin: nonObfuscated ? 'net.fabricmc.fabric-loom' : 'net.fabricmc.fabric-loom-remap'
     apply plugin: 'maven-publish'
 
-    def mc = rootProject.versionMatrix[project.name]
-    def modernUiVersions = ['1.21.9', '1.21.10', '1.21.11'] as Set
+    def modernUiVersions = ['1.21.9', '1.21.10', '1.21.11', '26.3'] as Set
     def matrixLegacyRenderVersions = ['1.21.6', '1.21.7', '1.21.8'] as Set
     def modBuildVersion = "${rootProject.mod_version}+mc${mc.minecraft}"
 
@@ -49,7 +56,20 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
         main {
             def compatJavaDirs = [rootProject.file('src/main/java')]
 
-            if (mc.minecraft == '1.20.1') {
+            compatJavaDirs += rootProject.file(nonObfuscated
+                ? 'src/compat_26/java'
+                : 'src/compat_graphics_legacy/java')
+            if (nonObfuscated) {
+                compatJavaDirs += rootProject.file(mc.minecraft == '26.3'
+                    ? 'src/compat_26_3/java'
+                    : mc.minecraft == '26.2'
+                        ? 'src/compat_26_2/java'
+                        : 'src/compat_26_pre3/java')
+            }
+
+            if (nonObfuscated) {
+                // Newer Minecraft releases use the extraction-based GUI API.
+            } else if (mc.minecraft == '1.20.1') {
                 compatJavaDirs += rootProject.file('src/compat_1_20/java')
             } else if (modernUiVersions.contains(mc.minecraft)) {
                 compatJavaDirs += rootProject.file('src/compat_1_21/java')
@@ -75,9 +95,14 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
 
     dependencies {
         minecraft "com.mojang:minecraft:${mc.minecraft}"
-        mappings loom.officialMojangMappings()
-        modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
-        modImplementation "net.fabricmc.fabric-api:fabric-api:${mc.fabricApi}"
+        if (!nonObfuscated) {
+            mappings loom.officialMojangMappings()
+            modImplementation "net.fabricmc:fabric-loader:${mc.loader ?: rootProject.fabric_loader_version}"
+            modImplementation "net.fabricmc.fabric-api:fabric-api:${mc.fabricApi}"
+        } else {
+            implementation "net.fabricmc:fabric-loader:${mc.loader ?: rootProject.fabric_loader_version}"
+            implementation "net.fabricmc.fabric-api:fabric-api:${mc.fabricApi}"
+        }
         if (mc.minecraft == '1.21.11') {
             testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
             testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -94,27 +119,34 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         inputs.property 'version', modBuildVersion
         inputs.property 'minecraft_version', mc.minecraft
-        inputs.property 'fabric_loader_version', rootProject.fabric_loader_version
+        inputs.property 'fabric_loader_version', mc.loader ?: rootProject.fabric_loader_version
         inputs.property 'fabric_api_version', mc.fabricApi
+        inputs.property 'java_version', mc.java ?: 17
 
         filesMatching('fabric.mod.json') {
             expand(
                 version: modBuildVersion,
                 minecraft_version: mc.minecraft,
-                fabric_loader_version: rootProject.fabric_loader_version,
-                fabric_api_version: mc.fabricApi
+                fabric_loader_version: mc.loader ?: rootProject.fabric_loader_version,
+                fabric_api_version: mc.fabricApi,
+                java_version: mc.java ?: 17
             )
         }
     }
 
     tasks.withType(JavaCompile).configureEach {
         it.options.encoding = 'UTF-8'
-        it.options.release = 17
+        it.options.release = mc.java ?: 17
+    }
+
+    tasks.withType(Jar).configureEach {
+        reproducibleFileOrder = true
+        preserveFileTimestamps = false
     }
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.toVersion(mc.java ?: 17)
+        targetCompatibility = JavaVersion.toVersion(mc.java ?: 17)
     }
 
     publishing {
@@ -126,6 +158,65 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
         }
 
         repositories {
+        }
+    }
+
+    if (project.hasProperty('taskmanagerLiveTest') && ['mc1_21_11', 'mc26_2', 'mc26_3'].contains(project.name)) {
+        fabricApi {
+            configureTests {
+                createSourceSet = true
+                modId = 'taskmanager-private-client-test'
+                enableGameTests = false
+                enableClientGameTests = true
+            }
+        }
+        sourceSets.gametest.java.setSrcDirs([
+            rootProject.file('src/clientGameTest/java'),
+            rootProject.file(nonObfuscated
+                ? 'src/clientGameTest_26_3/java'
+                : 'src/clientGameTest_1_21_11/java')
+        ])
+        sourceSets.gametest.resources.setSrcDirs([rootProject.file('src/clientGameTest/resources')])
+        tasks.named('processGametestResources', ProcessResources) {
+            inputs.property 'test_minecraft_version', mc.minecraft
+            inputs.property 'test_fabric_loader_version', mc.loader ?: rootProject.fabric_loader_version
+            filesMatching('fabric.mod.json') {
+                expand(
+                    test_minecraft_version: mc.minecraft,
+                    test_fabric_loader_version: mc.loader ?: rootProject.fabric_loader_version
+                )
+            }
+        }
+        dependencies {
+            productionRuntimeMods "net.fabricmc.fabric-api:fabric-api:${mc.fabricApi}"
+        }
+        def clientTestJar = tasks.register('privateClientTestJar', Jar) {
+            from(sourceSets.gametest.output)
+            archiveBaseName = 'taskmanager-private-client-test'
+            archiveVersion = '1.0.0'
+            archiveClassifier = 'dev'
+            destinationDirectory = layout.buildDirectory.dir('private')
+        }
+        def clientTestRuntimeJar = clientTestJar
+        if (!nonObfuscated) {
+            clientTestRuntimeJar = tasks.register('remapPrivateClientTestJar', net.fabricmc.loom.task.RemapJarTask) {
+                dependsOn clientTestJar
+                inputFile.set(clientTestJar.flatMap { it.archiveFile })
+                archiveBaseName = 'taskmanager-private-client-test'
+                archiveVersion = '1.0.0'
+                archiveClassifier = ''
+                destinationDirectory = layout.buildDirectory.dir('private')
+            }
+        }
+        tasks.register('runProductionClientGameTest', net.fabricmc.loom.task.prod.ClientProductionRunTask) {
+            jvmArgs.add('-Dfabric.client.gametest')
+            jvmArgs.add("-Dtaskmanager.test.sha512=${project.findProperty('taskmanagerTestSha') ?: ''}")
+            jvmArgs.add("-Dtaskmanager.test.minecraft=${mc.minecraft}")
+            if (mc.minecraft == '26.3') {
+                programArgs.addAll(['--graphicsBackend', 'vulkan'])
+            }
+            runDir = file("build/live-client-${mc.minecraft}-${project.findProperty('taskmanagerTestRunId') ?: 'gallery'}")
+            mods.from(clientTestRuntimeJar)
         }
     }
 }

@@ -39,8 +39,8 @@ public final class WorkspaceOverlayScreen extends Screen {
     private static final int PANEL_RESIZE_HANDLE_SIZE = 14;
     private static final long HEADER_DOUBLE_CLICK_MS = 300L;
     private static final int NAV_TOGGLE_SIZE = 20;
-    private static final int ADD_GLOBAL_BUTTON_WIDTH = 58;
-    private static final int ADD_CONTEXT_BUTTON_WIDTH = 62;
+    private static final int ADD_GLOBAL_BUTTON_WIDTH = 72;
+    private static final int ADD_CONTEXT_BUTTON_WIDTH = 82;
     private static final int SNAP_BUTTON_WIDTH = 56;
     private static final int RESET_BUTTON_WIDTH = 62;
     private static final int TOP_BUTTON_GAP = 5;
@@ -48,11 +48,11 @@ public final class WorkspaceOverlayScreen extends Screen {
     private static final int DRAWER_LIST_TOP = 64;
     private static final int DRAWER_LIST_BOTTOM_PADDING = 14;
 
-    private static final int SETTINGS_PANEL_WIDTH = 336;
+    private static final int SETTINGS_PANEL_WIDTH = 320;
     private static final int SETTINGS_PANEL_HEIGHT = 236;
-    private static final int EDITOR_PANEL_WIDTH = 392;
+    private static final int EDITOR_PANEL_WIDTH = 320;
     private static final int EDITOR_PANEL_HEIGHT = 296;
-    private static final int TOOLBAR_BUTTON_WIDTH = 48;
+    private static final int TOOLBAR_BUTTON_WIDTH = 44;
     private static final int TOOLBAR_BUTTON_GAP = 6;
     private static final int TOOLBAR_ROW_HEIGHT = 24;
     private static final int COLOR_INPUT_WIDTH = 92;
@@ -143,16 +143,16 @@ public final class WorkspaceOverlayScreen extends Screen {
         navToggleButton = addRenderableWidget(Button.builder(Component.literal("^"), button -> toggleTopBar())
             .bounds(width - NAV_TOGGLE_SIZE - 8, 6, NAV_TOGGLE_SIZE, 20)
             .build());
-        addGlobalButton = addRenderableWidget(Button.builder(Component.literal("+G"), button -> createNote(WorkspaceScope.GLOBAL))
+        addGlobalButton = addRenderableWidget(Button.builder(Component.literal("+ Global"), button -> createNote(WorkspaceScope.GLOBAL))
             .bounds(SIDEBAR_RIGHT + 18, 6, ADD_GLOBAL_BUTTON_WIDTH, 20)
             .build());
-        addContextButton = addRenderableWidget(Button.builder(Component.literal("+C"), button -> createNote(WorkspaceScope.CONTEXT))
+        addContextButton = addRenderableWidget(Button.builder(Component.literal("+ Context"), button -> createNote(WorkspaceScope.CONTEXT))
             .bounds(SIDEBAR_RIGHT + 116, 6, ADD_CONTEXT_BUTTON_WIDTH, 20)
             .build());
         snapButton = addRenderableWidget(Button.builder(Component.literal("Grid"), button -> toggleSnap())
             .bounds(width - 204, 6, SNAP_BUTTON_WIDTH, 20)
             .build());
-        resetLayoutButton = addRenderableWidget(Button.builder(Component.literal("Reset"), button -> resetOverlayLayout())
+        resetLayoutButton = addRenderableWidget(Button.builder(Component.literal("Reset UI"), button -> resetOverlayLayout())
             .bounds(width - 110, 6, RESET_BUTTON_WIDTH, 20)
             .build());
         scaleDownButton = addRenderableWidget(Button.builder(Component.literal("Scale -"), button -> adjustScale(-0.05F))
@@ -191,7 +191,7 @@ public final class WorkspaceOverlayScreen extends Screen {
         italicButton = addRenderableWidget(Button.builder(Component.literal("I"), button -> insertSnippet("**", 1))
             .bounds(0, 0, 48, 20)
             .build());
-        listButton = addRenderableWidget(Button.builder(Component.literal("Li"), button -> insertSnippet("- ", 0))
+        listButton = addRenderableWidget(Button.builder(Component.literal("Task"), button -> insertSnippet("- [ ] ", 0))
             .bounds(0, 0, 48, 20)
             .build());
         quoteButton = addRenderableWidget(Button.builder(Component.literal(">"), button -> insertSnippet("> ", 0))
@@ -341,6 +341,11 @@ public final class WorkspaceOverlayScreen extends Screen {
             }
             if (WorkspaceNoteRenderer.isDeleteButtonHit(hoveredNote, font, context.x(), context.y())) {
                 deleteNote(hoveredNote);
+                return true;
+            }
+            if (WorkspaceNoteRenderer.toggleCheckboxAt(hoveredNote, font, context.x(), context.y())) {
+                workspaceManager.saveNote(hoveredNote);
+                syncEditorWithSelection();
                 return true;
             }
             if (WorkspaceNoteRenderer.isHeaderHit(hoveredNote, context.x(), context.y()) && shouldStartTitleEditing(hoveredNote)) {
@@ -686,7 +691,7 @@ public final class WorkspaceOverlayScreen extends Screen {
         guiGraphics.fill(left, top, right, top + PANEL_HEADER_HEIGHT, 0xF0223140);
         guiGraphics.drawString(font, Component.literal(title), left + 8, top + 7, 0xFFF5F7FA, false);
         if (subtitle != null && !subtitle.isBlank()) {
-            int subtitleX = left + 78;
+            int subtitleX = left + 8 + font.width(title) + 14;
             int subtitleWidth = Math.max(0, right - PANEL_CONTROL_SIZE - 18 - subtitleX);
             drawTrimmedString(guiGraphics, subtitle, subtitleX, top + 7, subtitleWidth, 0xFF8FB3C9);
         }
@@ -808,8 +813,24 @@ public final class WorkspaceOverlayScreen extends Screen {
 
     private void ensurePanelLayouts() {
         int top = workspaceTop();
-        overlayLayout.ensurePanel(WorkspaceOverlayPanel.SETTINGS, width - SETTINGS_PANEL_WIDTH - 16, top + 18, SETTINGS_PANEL_WIDTH, SETTINGS_PANEL_HEIGHT);
-        overlayLayout.ensurePanel(WorkspaceOverlayPanel.EDITOR, width - EDITOR_PANEL_WIDTH - 22, Math.min(height - EDITOR_PANEL_HEIGHT - 16, top + SETTINGS_PANEL_HEIGHT + 30), EDITOR_PANEL_WIDTH, Math.min(EDITOR_PANEL_HEIGHT, height - top - 24));
+        WorkspaceOverlayLayoutState.PanelLayout editor = overlayLayout.ensurePanel(
+            WorkspaceOverlayPanel.EDITOR,
+            width - EDITOR_PANEL_WIDTH - 16,
+            top + 18,
+            EDITOR_PANEL_WIDTH,
+            Math.min(EDITOR_PANEL_HEIGHT, Math.max(170, height - top - 70))
+        );
+        boolean newSettingsPanel = overlayLayout.getPanel(WorkspaceOverlayPanel.SETTINGS) == null;
+        WorkspaceOverlayLayoutState.PanelLayout settings = overlayLayout.ensurePanel(
+            WorkspaceOverlayPanel.SETTINGS,
+            width - SETTINGS_PANEL_WIDTH - 16,
+            Math.min(height - PANEL_HEADER_HEIGHT - 8, editor.getY() + editor.getHeight() + 8),
+            SETTINGS_PANEL_WIDTH,
+            SETTINGS_PANEL_HEIGHT
+        );
+        if (newSettingsPanel) {
+            settings.setMinimized(true);
+        }
 
         for (WorkspaceOverlayPanel panel : WorkspaceOverlayPanel.values()) {
             if (!isPanelEnabled(panel)) {
@@ -845,7 +866,7 @@ public final class WorkspaceOverlayScreen extends Screen {
             return;
         }
 
-        WorkspaceNote note = workspaceManager.createNote(scope, SIDEBAR_RIGHT + 18, workspaceTop() + 18, width - 20, height - 20);
+        WorkspaceNote note = workspaceManager.createNote(scope, SIDEBAR_RIGHT - 10, workspaceTop() + 18, width - 20, height - 20);
         clampNoteToViewport(note);
         workspaceManager.saveNote(note);
         selectNote(note);

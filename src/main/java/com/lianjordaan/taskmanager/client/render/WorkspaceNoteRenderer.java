@@ -2,8 +2,8 @@ package com.lianjordaan.taskmanager.client.render;
 
 import com.lianjordaan.taskmanager.client.workspace.WorkspaceNote;
 import com.lianjordaan.taskmanager.client.workspace.WorkspaceScope;
+import com.lianjordaan.taskmanager.client.workspace.TaskChecklist;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.util.Mth;
 
 public final class WorkspaceNoteRenderer {
@@ -18,11 +18,12 @@ public final class WorkspaceNoteRenderer {
     private WorkspaceNoteRenderer() {
     }
 
-    public static void render(GuiGraphics guiGraphics, Font font, WorkspaceNote note, boolean overlayMode, boolean selected) {
-        render(guiGraphics, font, note, overlayMode, selected, false);
+    public static void render(Object graphics, Font font, WorkspaceNote note, boolean overlayMode, boolean selected) {
+        render(graphics, font, note, overlayMode, selected, false);
     }
 
-    public static void render(GuiGraphics guiGraphics, Font font, WorkspaceNote note, boolean overlayMode, boolean selected, boolean showActions) {
+    public static void render(Object graphics, Font font, WorkspaceNote note, boolean overlayMode, boolean selected, boolean showActions) {
+        WorkspaceCanvas guiGraphics = WorkspaceCanvasCompat.wrap(graphics);
         int x = Math.round(note.getX());
         int y = Math.round(note.getY());
         int width = Math.max(160, Math.round(note.getWidth()));
@@ -38,7 +39,7 @@ public final class WorkspaceNoteRenderer {
         int actionWidth = showActions ? actionStripWidth() + 8 : 0;
         int titleWidth = Math.max(40, width - scopeLabelWidth - actionWidth - 22);
 
-        WorkspaceRenderCompat.pushTranslateScale(guiGraphics, x, y, note.getScale());
+        guiGraphics.push(x, y, note.getScale());
 
         guiGraphics.fill(-1, -1, width + 1, height + 1, outline);
         guiGraphics.fill(0, 0, width, height, surface);
@@ -73,7 +74,7 @@ public final class WorkspaceNoteRenderer {
             }
         }
 
-        WorkspaceRenderCompat.pop(guiGraphics);
+        guiGraphics.pop();
     }
 
     public static boolean contains(WorkspaceNote note, double mouseX, double mouseY) {
@@ -86,6 +87,28 @@ public final class WorkspaceNoteRenderer {
         int x = Math.round(note.getX());
         int y = Math.round(note.getY());
         return mouseX >= x && mouseX <= x + note.getRenderedWidth() && mouseY >= y && mouseY <= y + getRenderedHeaderHeight(note);
+    }
+
+    /** Toggle a visible Markdown task marker in the overlay, if one was clicked. */
+    public static boolean toggleCheckboxAt(WorkspaceNote note, Font font, double mouseX, double mouseY) {
+        float scale = Math.max(0.01F, note.getScale());
+        double localX = (mouseX - note.getX()) / scale - 10;
+        double localY = (mouseY - note.getY()) / scale - HEADER_HEIGHT - 8;
+        int width = Math.max(160, Math.round(note.getWidth()));
+        int height = Math.max(96, Math.round(note.getHeight()));
+        if (localX < 0 || localX >= width - 18 || localY < 0 || localY >= height - HEADER_HEIGHT - 16) {
+            return false;
+        }
+        int line = MarkdownRenderer.checkboxAt(font, note.getContent(), width - 18, localX, localY);
+        if (line < 0) {
+            return false;
+        }
+        String updated = TaskChecklist.toggleLine(note.getContent(), line);
+        if (updated.equals(note.getContent())) {
+            return false;
+        }
+        note.setContent(updated);
+        return true;
     }
 
     public static boolean isResizeHandleHit(WorkspaceNote note, double mouseX, double mouseY) {
@@ -118,7 +141,7 @@ public final class WorkspaceNoteRenderer {
         return Math.max(14, Math.round(HEADER_HEIGHT * note.getScale()));
     }
 
-    private static void renderActionButtons(GuiGraphics guiGraphics, int width, int scopeLabelWidth, WorkspaceNote note, int textAlpha) {
+    private static void renderActionButtons(WorkspaceCanvas guiGraphics, int width, int scopeLabelWidth, WorkspaceNote note, int textAlpha) {
         int left = actionStripLeft(width, scopeLabelWidth);
         int top = 5;
         renderHideIcon(guiGraphics, left, top, note.isHidden(), textAlpha);
@@ -126,7 +149,7 @@ public final class WorkspaceNoteRenderer {
         renderDeleteIcon(guiGraphics, left + (ACTION_BUTTON_SIZE + ACTION_BUTTON_GAP) * 2, top, textAlpha);
     }
 
-    private static void renderHideIcon(GuiGraphics guiGraphics, int left, int top, boolean hidden, int textAlpha) {
+    private static void renderHideIcon(WorkspaceCanvas guiGraphics, int left, int top, boolean hidden, int textAlpha) {
         renderActionBackground(guiGraphics, left, top, hidden ? 0x74546A7F : 0x54384A5F);
         int color = withAlpha(0xFFE8F4FF, textAlpha);
         guiGraphics.fill(left + 2, top + 5, left + 10, top + 7, color);
@@ -138,7 +161,7 @@ public final class WorkspaceNoteRenderer {
         }
     }
 
-    private static void renderLockIcon(GuiGraphics guiGraphics, int left, int top, boolean locked, int textAlpha) {
+    private static void renderLockIcon(WorkspaceCanvas guiGraphics, int left, int top, boolean locked, int textAlpha) {
         renderActionBackground(guiGraphics, left, top, locked ? 0x746B5A34 : 0x54384A5F);
         int color = withAlpha(0xFFFFF1C6, textAlpha);
         guiGraphics.fill(left + 3, top + 6, left + 9, top + 10, color);
@@ -147,7 +170,7 @@ public final class WorkspaceNoteRenderer {
         guiGraphics.fill(left + 8, top + 4, left + 9, top + 7, color);
     }
 
-    private static void renderDeleteIcon(GuiGraphics guiGraphics, int left, int top, int textAlpha) {
+    private static void renderDeleteIcon(WorkspaceCanvas guiGraphics, int left, int top, int textAlpha) {
         renderActionBackground(guiGraphics, left, top, 0x62563A43);
         int color = withAlpha(0xFFFFD8DD, textAlpha);
         for (int step = 0; step < 7; step++) {
@@ -156,7 +179,7 @@ public final class WorkspaceNoteRenderer {
         }
     }
 
-    private static void renderActionBackground(GuiGraphics guiGraphics, int left, int top, int fill) {
+    private static void renderActionBackground(WorkspaceCanvas guiGraphics, int left, int top, int fill) {
         guiGraphics.fill(left, top, left + ACTION_BUTTON_SIZE, top + ACTION_BUTTON_SIZE, fill);
         guiGraphics.fill(left, top, left + ACTION_BUTTON_SIZE, top + 1, 0x48FFFFFF);
     }

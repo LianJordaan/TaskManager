@@ -1,7 +1,6 @@
 package com.lianjordaan.taskmanager.client.render;
 
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,13 +10,14 @@ import java.util.regex.Pattern;
 public final class MarkdownRenderer {
     private static final Pattern HEADING_PATTERN = Pattern.compile("^(#{1,6})\\s+(.*)$");
     private static final Pattern LIST_PATTERN = Pattern.compile("^(\\s*)([-*+]\\s+|\\d+\\.\\s+)(.*)$");
+    private static final Pattern CHECKBOX_PATTERN = Pattern.compile("^\\[([ xX])]\\s*(.*)$");
     private static final Pattern QUOTE_PATTERN = Pattern.compile("^>\\s?(.*)$");
     private static final Pattern LINK_PATTERN = Pattern.compile("\\[(.+?)]\\((.+?)\\)");
 
     private MarkdownRenderer() {
     }
 
-    public static void render(GuiGraphics guiGraphics, Font font, String markdown, int x, int y, int width, int maxHeight, int textAlpha) {
+    public static void render(WorkspaceCanvas guiGraphics, Font font, String markdown, int x, int y, int width, int maxHeight, int textAlpha) {
         int drawY = y;
         for (RenderedLine line : layout(font, markdown, width)) {
             if (drawY + font.lineHeight > y + maxHeight) {
@@ -44,12 +44,26 @@ public final class MarkdownRenderer {
         return height;
     }
 
+    /** Returns the source line of a checkbox when its visible marker is clicked. */
+    public static int checkboxAt(Font font, String markdown, int width, double x, double y) {
+        int drawY = 0;
+        for (RenderedLine line : layout(font, markdown, width)) {
+            if (line.checkbox && x >= line.indent - 2 && x <= line.indent + font.width("[ ]") + 3
+                && y >= drawY - 1 && y <= drawY + font.lineHeight + 1) {
+                return line.sourceLine;
+            }
+            drawY += font.lineHeight + (line.heading ? 2 : 0);
+        }
+        return -1;
+    }
+
     private static List<RenderedLine> layout(Font font, String markdown, int width) {
         List<RenderedLine> renderedLines = new ArrayList<>();
         String[] sourceLines = markdown == null ? new String[]{""} : markdown.split("\\R", -1);
         boolean inCodeBlock = false;
 
-        for (String rawLine : sourceLines) {
+        for (int sourceLine = 0; sourceLine < sourceLines.length; sourceLine++) {
+            String rawLine = sourceLines[sourceLine];
             String trimmed = rawLine.trim();
             if (trimmed.startsWith("```")) {
                 inCodeBlock = !inCodeBlock;
@@ -76,7 +90,14 @@ public final class MarkdownRenderer {
 
             Matcher listMatcher = LIST_PATTERN.matcher(rawLine);
             if (listMatcher.matches()) {
-                appendWrapped(font, renderedLines, "• " + sanitizeInline(listMatcher.group(3)), width, 10, 0xFFD8E2EE, false, false, false);
+                Matcher checkbox = CHECKBOX_PATTERN.matcher(listMatcher.group(3));
+                if (checkbox.matches()) {
+                    boolean done = !checkbox.group(1).equals(" ");
+                    appendWrapped(font, renderedLines, (done ? "[x] " : "[ ] ") + sanitizeInline(checkbox.group(2)),
+                        width, 10, done ? 0xFF9FB0C1 : 0xFFD8E2EE, false, false, false, sourceLine, true);
+                } else {
+                    appendWrapped(font, renderedLines, "• " + sanitizeInline(listMatcher.group(3)), width, 10, 0xFFD8E2EE, false, false, false);
+                }
                 continue;
             }
 
@@ -95,7 +116,7 @@ public final class MarkdownRenderer {
         }
 
         if (renderedLines.isEmpty()) {
-            renderedLines.add(new RenderedLine("", 0xFFE7ECF5, 0, false, false, false));
+            renderedLines.add(new RenderedLine("", 0xFFE7ECF5, 0, false, false, false, -1, false));
         }
         return renderedLines;
     }
@@ -111,10 +132,28 @@ public final class MarkdownRenderer {
         boolean code,
         boolean quote
     ) {
+        appendWrapped(font, target, text, width, indent, color, heading, code, quote, -1, false);
+    }
+
+    private static void appendWrapped(
+        Font font,
+        List<RenderedLine> target,
+        String text,
+        int width,
+        int indent,
+        int color,
+        boolean heading,
+        boolean code,
+        boolean quote,
+        int sourceLine,
+        boolean checkbox
+    ) {
         int usableWidth = Math.max(24, width - indent);
         List<String> wrappedLines = wrapText(font, text.isBlank() ? " " : text, usableWidth);
+        boolean first = true;
         for (String wrappedLine : wrappedLines) {
-            target.add(new RenderedLine(wrappedLine, color, indent, heading, code, quote));
+            target.add(new RenderedLine(wrappedLine, color, indent, heading, code, quote, first ? sourceLine : -1, first && checkbox));
+            first = false;
         }
     }
 
@@ -172,6 +211,7 @@ public final class MarkdownRenderer {
         return (alpha << 24) | (color & 0x00FFFFFF);
     }
 
-    private record RenderedLine(String text, int color, int indent, boolean heading, boolean code, boolean quote) {
+    private record RenderedLine(String text, int color, int indent, boolean heading, boolean code,
+                                boolean quote, int sourceLine, boolean checkbox) {
     }
 }
