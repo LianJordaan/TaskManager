@@ -6,13 +6,18 @@ Source revision `23db2e7` passes the full 23-target Fabric build matrix with JDK
 
 | Minecraft | Exact production JAR SHA-512 | Real-client result |
 | --- | --- | --- |
+| 1.21.9 | `558e20b9420f11d065a947b91ac85520269d009dd77fc62883d1e1e186402fcce854b1d0581979444e03ff5fdabf39df37ec6c2adbb5524a7d4b93dd9756b90c` | Passed with Java 25, Xvfb and Mesa lavapipe |
+| 1.21.10 | `8e1762956b27979b698f1456cade11748adf3c8ef055faf523206d661fbbd8f83c0bad2d8ac10a38ba5e67a7972b080db8dd551a7fee227a954fa190a43e1338` | Passed with Java 25, Xvfb and Mesa lavapipe |
 | 1.21.11 | `321986b3c12b5a88e90d01afe3dbb6e4b9a02c365e99c3357174efe123c1c56cb0d32d77d9551ee3bda223edd25ff8b7eeb38718238012303ca7f6cce89f0578` | Passed with Java 25 |
+| 26.1 | `7239cde7e84716065abf92d68241bc6f335cb2e4c7ebdc2f30f4b1093df7e205991800a184eee37be5ca7721a041295580182716c0dc7501b7b12fdda7519098` | Passed with Java 25, Xvfb and Mesa lavapipe |
+| 26.1.1 | `003667bc1b99e4f722025b032376fc60d6d5609104aeecccaea15ffb0ee25404ea234c9a069feb622b7578bfcb977945e4bea0f4e006cc74710cacff4cd1bde7` | Passed with Java 25, Xvfb and Mesa lavapipe |
+| 26.1.2 | `a4a55cee5ea851e35d4f72f145e0e322bf4154ae0282cb8b3cef54fd57b29b9e5f3f263a58bb1d06d349b1252aefd30fe307e737fd9cdd15546fa924e5c03024` | Passed with Java 25, Xvfb and Mesa lavapipe |
 | 26.2 | `42409abfc4d28d0a9b24210ad7122abf3117530311f98687c33d27571a63267b87cd84be7639a4c907511044a928ada32078dcf32e9205218e5f09e16cd0c668` | Passed with Java 25 |
 | 26.3 | `07eb5e8f08b8f69a194d48b272c56b8d75174061342e347ce6f394d64e196f0f9bb6aef752da659c673c598205a00d933c44df7f33fc361906d6f7d0d3b083c4` | Passed with Java 25, Xvfb and Mesa lavapipe; experimental Minecraft release |
 
-The private Fabric client test verifies the loaded production JAR's hash, enters a real singleplayer world, creates and edits a context card, clicks its rendered checkbox, checks that the result saved, and captures workspace and HUD screenshots. Receipts and raw logs are under `testing/taskmanager/live/taskmanager-1.1.0-20261002/` in the workspace. The five [gallery screenshots](screenshots/) are direct, unedited captures from these 1.1.0 runs. The Linux 26.3 run logged a recoverable Vulkan swapchain warning during world creation, then completed all checks. Its test client used FabricMC test credentials rather than a real authenticated account.
+The private Fabric client test verifies the loaded production JAR's hash, enters a real singleplayer world, creates and edits a context card, clicks its rendered checkbox, checks that the result saved, and captures workspace and HUD screenshots. Receipts, raw logs and three screenshots per run are under `testing/taskmanager/live/taskmanager-1.1.0-20261002/` in the workspace. The five [gallery screenshots](screenshots/) are direct, unedited captures from these 1.1.0 runs. The Linux 26.3 run logged a recoverable Vulkan swapchain warning during world creation, then completed all checks. Linux runs also logged a harmless Xvfb cursor-shape error at shutdown after the test passed. The test clients used FabricMC test credentials rather than a real authenticated account.
 
-The other 20 built targets have not passed the 1.1.0 client check and are not verified release targets.
+The other 15 built targets have not passed the 1.1.0 client check and are not verified release targets.
 
 ## 1.0.0 earlier candidate
 
