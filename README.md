@@ -8,12 +8,13 @@ The **+ Global** and **+ Context** buttons make cards for either scope. The edit
 
 ## Screenshots
 
-These are direct, unedited Minecraft client captures from the live 1.21.11 and 26.2 checks:
+These are direct, unedited Minecraft client captures from the live 1.1.0 checks on 1.21.11, 26.2 and experimental 26.3:
 
 - [Workspace and editor](docs/screenshots/workspace-editor-1.21.11.png)
 - [Checked task](docs/screenshots/task-checked-1.21.11.png)
 - [In-game HUD](docs/screenshots/in-game-hud-1.21.11.png)
 - [Workspace on 26.2](docs/screenshots/workspace-editor-26.2.png)
+- [Workspace on 26.3](docs/screenshots/workspace-editor-26.3.png)
 
 ## Your data
 
