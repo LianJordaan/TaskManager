@@ -6,10 +6,6 @@ import com.lianjordaan.taskmanager.TaskManager;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
-import java.io.Reader;
-import java.io.Writer;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 public final class WorkspaceOverlayLayoutStorage {
@@ -18,12 +14,9 @@ public final class WorkspaceOverlayLayoutStorage {
     private final Path path = FabricLoader.getInstance().getGameDir().resolve("config").resolve(TaskManager.MOD_ID).resolve("overlay-layout.json");
 
     public WorkspaceOverlayLayoutState load() {
-        if (!Files.exists(path)) {
-            return new WorkspaceOverlayLayoutState();
-        }
-
-        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            StoredOverlayLayout storedLayout = GSON.fromJson(reader, StoredOverlayLayout.class);
+        try {
+            StoredOverlayLayout storedLayout = WorkspaceFileIO.read(path, GSON, StoredOverlayLayout.class,
+                value -> value != null);
             WorkspaceOverlayLayoutState state = new WorkspaceOverlayLayoutState();
             if (storedLayout == null) {
                 return state;
@@ -56,7 +49,7 @@ public final class WorkspaceOverlayLayoutStorage {
                 }
             }
             return state;
-        } catch (IOException exception) {
+        } catch (RuntimeException exception) {
             TaskManager.LOGGER.warn("Failed to load overlay layout from {}", path, exception);
             return new WorkspaceOverlayLayoutState();
         }
@@ -64,8 +57,6 @@ public final class WorkspaceOverlayLayoutStorage {
 
     public void save(WorkspaceOverlayLayoutState state) {
         try {
-            Files.createDirectories(path.getParent());
-
             StoredOverlayLayout storedLayout = new StoredOverlayLayout();
             storedLayout.version = 3;
             storedLayout.snapToGrid = state.isSnapToGrid();
@@ -90,9 +81,8 @@ public final class WorkspaceOverlayLayoutStorage {
                 storedLayout.panels[index++] = storedPanel;
             }
 
-            try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
-                GSON.toJson(storedLayout, writer);
-            }
+            WorkspaceFileIO.write(path, GSON, storedLayout, StoredOverlayLayout.class,
+                previous -> previous != null);
         } catch (IOException exception) {
             TaskManager.LOGGER.warn("Failed to save overlay layout to {}", path, exception);
         }

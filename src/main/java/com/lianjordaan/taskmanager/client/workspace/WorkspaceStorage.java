@@ -6,10 +6,6 @@ import com.lianjordaan.taskmanager.TaskManager;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
-import java.io.Reader;
-import java.io.Writer;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,27 +45,15 @@ final class WorkspaceStorage {
     }
 
     private List<WorkspaceNote> loadNotes(Path path, WorkspaceScope fallbackScope) {
-        if (!Files.exists(path)) {
+        StoredWorkspace workspace = WorkspaceFileIO.read(path, GSON, StoredWorkspace.class,
+            value -> value != null && value.notes != null && value.notes.stream().noneMatch(note -> note == null));
+        if (workspace == null) {
             return new ArrayList<>();
         }
-
-        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            StoredWorkspace workspace = GSON.fromJson(reader, StoredWorkspace.class);
-            if (workspace == null || workspace.notes == null) {
-                return new ArrayList<>();
-            }
-
+        try {
             List<WorkspaceNote> notes = new ArrayList<>();
             for (StoredNote storedNote : workspace.notes) {
                 WorkspaceScope scope = fallbackScope;
-                if (storedNote.scope != null) {
-                    try {
-                        scope = WorkspaceScope.valueOf(storedNote.scope);
-                    } catch (IllegalArgumentException ignored) {
-                        scope = fallbackScope;
-                    }
-                }
-
                 notes.add(new WorkspaceNote(
                     parseUuid(storedNote.id),
                     scope,
@@ -88,7 +72,7 @@ final class WorkspaceStorage {
                 ));
             }
             return notes;
-        } catch (IOException exception) {
+        } catch (RuntimeException exception) {
             TaskManager.LOGGER.warn("Failed to load workspace notes from {}", path, exception);
             return new ArrayList<>();
         }
@@ -96,8 +80,6 @@ final class WorkspaceStorage {
 
     private void saveNotes(Path path, String workspaceKey, String workspaceLabel, List<WorkspaceNote> notes) {
         try {
-            Files.createDirectories(path.getParent());
-
             StoredWorkspace workspace = new StoredWorkspace();
             workspace.version = 3;
             workspace.workspaceKey = workspaceKey;
@@ -123,9 +105,9 @@ final class WorkspaceStorage {
                 workspace.notes.add(storedNote);
             }
 
-            try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
-                GSON.toJson(workspace, writer);
-            }
+            WorkspaceFileIO.write(path, GSON, workspace, StoredWorkspace.class,
+                previous -> previous != null && previous.notes != null
+                    && previous.notes.stream().noneMatch(note -> note == null));
         } catch (IOException exception) {
             TaskManager.LOGGER.warn("Failed to save workspace notes to {}", path, exception);
         }

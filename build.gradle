@@ -78,6 +78,16 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
         mappings loom.officialMojangMappings()
         modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
         modImplementation "net.fabricmc.fabric-api:fabric-api:${mc.fabricApi}"
+        if (mc.minecraft == '1.21.11') {
+            testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+            testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+        }
+    }
+
+    if (mc.minecraft == '1.21.11') {
+        tasks.named('test', Test) {
+            useJUnitPlatform()
+        }
     }
 
     processResources {
