@@ -161,7 +161,10 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
         }
     }
 
-    if (project.hasProperty('taskmanagerLiveTest') && ['mc1_21_11', 'mc26_2', 'mc26_3'].contains(project.name)) {
+    if (project.hasProperty('taskmanagerLiveTest') && [
+        'mc1_21_9', 'mc1_21_10', 'mc1_21_11',
+        'mc26_1', 'mc26_1_1', 'mc26_1_2', 'mc26_2', 'mc26_3'
+    ].contains(project.name)) {
         fabricApi {
             configureTests {
                 createSourceSet = true
@@ -172,7 +175,7 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
         }
         sourceSets.gametest.java.setSrcDirs([
             rootProject.file('src/clientGameTest/java'),
-            rootProject.file(nonObfuscated
+            rootProject.file(nonObfuscated && ['26.2', '26.3'].contains(mc.minecraft)
                 ? 'src/clientGameTest_26_3/java'
                 : 'src/clientGameTest_1_21_11/java')
         ])
