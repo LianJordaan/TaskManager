@@ -27,6 +27,7 @@ public final class TaskManagerLegacyClientTest implements ClientModInitializer {
     private int step;
     private int stepAt;
     private boolean connecting;
+    private boolean displayConfigured;
     private boolean failed;
     private Path image;
 
@@ -42,6 +43,15 @@ public final class TaskManagerLegacyClientTest implements ClientModInitializer {
         }
         try {
             ticks++;
+            if (!displayConfigured) {
+                displayConfigured = true;
+                int guiScale = Integer.getInteger("taskmanager.test.guiScale", 0);
+                if (guiScale > 0) {
+                    client.options.guiScale().set(guiScale);
+                    client.resizeDisplay();
+                    System.out.println("TaskManager requested GUI scale: " + guiScale);
+                }
+            }
             if (ticks > 2400) {
                 throw new AssertionError("TaskManager client test timed out at step " + step);
             }

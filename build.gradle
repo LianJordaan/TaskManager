@@ -222,6 +222,7 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
                 jvmArgs.add('-Dfabric.client.gametest')
             } else {
                 jvmArgs.add("-Dtaskmanager.test.address=${project.findProperty('taskmanagerTestAddress') ?: '127.0.0.1:27260'}")
+                jvmArgs.add("-Dtaskmanager.test.guiScale=${project.findProperty('taskmanagerTestGuiScale') ?: '0'}")
                 programArgs.addAll(['--username', project.findProperty('taskmanagerTestUsername') ?: 'TaskProbe'])
                 programArgs.addAll(['--width', project.findProperty('taskmanagerTestWidth') ?: '1600',
                                     '--height', project.findProperty('taskmanagerTestHeight') ?: '900'])
