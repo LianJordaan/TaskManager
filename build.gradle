@@ -223,7 +223,8 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
             } else {
                 jvmArgs.add("-Dtaskmanager.test.address=${project.findProperty('taskmanagerTestAddress') ?: '127.0.0.1:27260'}")
                 programArgs.addAll(['--username', project.findProperty('taskmanagerTestUsername') ?: 'TaskProbe'])
-                programArgs.addAll(['--width', '1600', '--height', '900'])
+                programArgs.addAll(['--width', project.findProperty('taskmanagerTestWidth') ?: '1600',
+                                    '--height', project.findProperty('taskmanagerTestHeight') ?: '900'])
             }
             jvmArgs.add("-Dtaskmanager.test.sha512=${project.findProperty('taskmanagerTestSha') ?: ''}")
             jvmArgs.add("-Dtaskmanager.test.minecraft=${mc.minecraft}")
