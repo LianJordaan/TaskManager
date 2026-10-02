@@ -4,6 +4,8 @@ import com.lianjordaan.taskmanager.client.render.WorkspaceNoteRenderer;
 import com.lianjordaan.taskmanager.client.screen.WorkspaceOverlayScreen;
 import com.lianjordaan.taskmanager.client.workspace.WorkspaceManager;
 import com.lianjordaan.taskmanager.client.workspace.WorkspaceNote;
+import com.lianjordaan.taskmanager.client.workspace.WorkspaceOverlayLayoutState;
+import com.lianjordaan.taskmanager.client.workspace.WorkspaceOverlayPanel;
 import com.lianjordaan.taskmanager.client.workspace.WorkspaceScope;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -12,6 +14,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -50,7 +53,7 @@ public final class TaskManagerLegacyClientTest implements ClientModInitializer {
                     connecting = true;
                     LegacyConnect.connect(client);
                 }
-            } else if (step == 1 && waited(150)) {
+            } else if (step == 1 && waited(450)) {
                 client.setScreen(new WorkspaceOverlayScreen(true));
                 advance(2);
             } else if (step == 2 && waited(12)) {
@@ -69,6 +72,7 @@ public final class TaskManagerLegacyClientTest implements ClientModInitializer {
                 advance(3);
             } else if (step == 3 && waited(12)) {
                 requireOverlay(client);
+                requireReadableLayout(client);
                 capture(client, "overlay");
                 advance(4);
             } else if (step == 4 && imageReady()) {
@@ -151,6 +155,33 @@ public final class TaskManagerLegacyClientTest implements ClientModInitializer {
             throw new AssertionError("The context task card disappeared");
         }
         return notes.get(notes.size() - 1);
+    }
+
+    private static void requireReadableLayout(Minecraft client) {
+        WorkspaceNote note = latestContextNote();
+        try {
+            Field field = WorkspaceOverlayScreen.class.getDeclaredField("overlayLayout");
+            field.setAccessible(true);
+            WorkspaceOverlayLayoutState layout = (WorkspaceOverlayLayoutState) field.get(client.screen);
+            WorkspaceOverlayLayoutState.PanelLayout editor = layout.getPanel(WorkspaceOverlayPanel.EDITOR);
+            if (editor == null || editor.isMinimized()) {
+                throw new AssertionError("The task editor is unavailable in the UI test");
+            }
+            boolean overlap = note.getX() < editor.getX() + editor.getWidth()
+                && note.getX() + note.getRenderedWidth() > editor.getX()
+                && note.getY() < editor.getY() + editor.getHeight()
+                && note.getY() + note.getRenderedHeight() > editor.getY();
+            if (overlap) {
+                throw new AssertionError("Task card overlaps the editor at this GUI scale: card="
+                    + note.getX() + "," + note.getY() + " width=" + note.getRenderedWidth()
+                    + "; editor=" + editor.getX() + "," + editor.getY());
+            }
+            System.out.println("TaskManager layout clear: GUI " + client.screen.width + "x"
+                + client.screen.height + ", card x=" + note.getX() + " width="
+                + note.getRenderedWidth() + ", editor x=" + editor.getX());
+        } catch (ReflectiveOperationException error) {
+            throw new AssertionError("Could not inspect the real TaskManager panel layout", error);
+        }
     }
 
     private static boolean savedTaskExists(Minecraft client) {

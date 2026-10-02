@@ -232,6 +232,11 @@ public final class WorkspaceOverlayScreen extends Screen {
         if (selectedNote == null) {
             selectedNote = firstAvailableNote();
         }
+        for (WorkspaceNote note : workspaceManager.getCombinedNotes(true)) {
+            if (fitNoteBesideEditor(note)) {
+                workspaceManager.saveNote(note);
+            }
+        }
 
         positionWidgets();
         syncEditorWithSelection();
@@ -867,8 +872,39 @@ public final class WorkspaceOverlayScreen extends Screen {
 
         WorkspaceNote note = workspaceManager.createNote(scope, SIDEBAR_RIGHT - 10, workspaceTop() + 18, width - 20, height - 20);
         clampNoteToViewport(note);
+        fitNoteBesideEditor(note);
         workspaceManager.saveNote(note);
         selectNote(note);
+    }
+
+    private boolean fitNoteBesideEditor(WorkspaceNote note) {
+        if (width >= 780) {
+            return false;
+        }
+        WorkspaceOverlayLayoutState.PanelLayout editor = panelLayout(WorkspaceOverlayPanel.EDITOR);
+        if (editor == null || editor.isMinimized()) {
+            return false;
+        }
+        float available = editor.getX() - 24.0F;
+        if (available < NOTE_MIN_WIDTH * note.getScale()) {
+            // At very narrow widths the editor becomes a separate, reopenable view.
+            editor.setMinimized(true);
+            editor.setY(height - PANEL_HEADER_HEIGHT - 8);
+            clampPanelToViewport(WorkspaceOverlayPanel.EDITOR, editor);
+            return false;
+        }
+        boolean overlaps = note.getX() + note.getRenderedWidth() > editor.getX() - 12
+            && note.getX() < editor.right()
+            && note.getY() + note.getRenderedHeight() > editor.getY()
+            && note.getY() < panelBottom(editor);
+        if (!overlaps) {
+            return false;
+        }
+        note.setWidth(Math.max(NOTE_MIN_WIDTH,
+            Math.min(note.getWidth(), available / note.getScale())));
+        note.setX(Math.max(12.0F, editor.getX() - 12.0F - note.getRenderedWidth()));
+        clampNoteToViewport(note);
+        return true;
     }
 
     private void selectNote(WorkspaceNote note) {
