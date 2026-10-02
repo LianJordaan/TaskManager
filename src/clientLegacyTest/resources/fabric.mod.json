@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "taskmanager-private-client-test",
+  "version": "1.0.0",
+  "name": "TaskManager private legacy client test",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.lianjordaan.taskmanager.test.TaskManagerLegacyClientTest"]
+  },
+  "depends": {
+    "fabricloader": ">=${test_fabric_loader_version}",
+    "minecraft": "${test_minecraft_version}",
+    "fabric-api": "*",
+    "taskmanager": "*"
+  }
+}

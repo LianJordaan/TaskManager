@@ -540,6 +540,12 @@ public final class WorkspaceOverlayScreen extends Screen {
         restorePanelWidgetVisibility(previousVisibility);
     }
 
+    @Override
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // Screen.render() runs after our cards and would blur/cover them here.
+        // The workspace draws its own background before rendering its widgets.
+    }
+
     private void renderChrome(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (!overlayLayout.isTopBarCollapsed()) {
             guiGraphics.fill(0, 0, width, TOP_BAR_HEIGHT, 0xF01B2230);

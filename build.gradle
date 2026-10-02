@@ -161,25 +161,31 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
         }
     }
 
-    if (project.hasProperty('taskmanagerLiveTest') && [
+    if (project.hasProperty('taskmanagerLiveTest')) {
+        def hasClientGameTest = [
+        'mc1_21_4', 'mc1_21_5', 'mc1_21_6', 'mc1_21_7', 'mc1_21_8',
         'mc1_21_9', 'mc1_21_10', 'mc1_21_11',
         'mc26_1', 'mc26_1_1', 'mc26_1_2', 'mc26_2', 'mc26_3'
-    ].contains(project.name)) {
+        ].contains(project.name)
         fabricApi {
             configureTests {
                 createSourceSet = true
                 modId = 'taskmanager-private-client-test'
                 enableGameTests = false
-                enableClientGameTests = true
+                enableClientGameTests = hasClientGameTest
             }
         }
-        sourceSets.gametest.java.setSrcDirs([
-            rootProject.file('src/clientGameTest/java'),
-            rootProject.file(nonObfuscated && ['26.2', '26.3'].contains(mc.minecraft)
-                ? 'src/clientGameTest_26_3/java'
-                : 'src/clientGameTest_1_21_11/java')
+        sourceSets.gametest.java.setSrcDirs(hasClientGameTest ? [
+                rootProject.file('src/clientGameTest/java'),
+                rootProject.file(nonObfuscated && ['26.2', '26.3'].contains(mc.minecraft)
+                    ? 'src/clientGameTest_26_3/java'
+                    : 'src/clientGameTest_1_21_11/java')
+            ] : [rootProject.file('src/clientLegacyTest/java')])
+        sourceSets.gametest.resources.setSrcDirs([
+            rootProject.file(hasClientGameTest
+                ? 'src/clientGameTest/resources'
+                : 'src/clientLegacyTest/resources')
         ])
-        sourceSets.gametest.resources.setSrcDirs([rootProject.file('src/clientGameTest/resources')])
         tasks.named('processGametestResources', ProcessResources) {
             inputs.property 'test_minecraft_version', mc.minecraft
             inputs.property 'test_fabric_loader_version', mc.loader ?: rootProject.fabric_loader_version
@@ -212,7 +218,13 @@ configure(subprojects.findAll { rootProject.versionMatrix.containsKey(it.name) }
             }
         }
         tasks.register('runProductionClientGameTest', net.fabricmc.loom.task.prod.ClientProductionRunTask) {
-            jvmArgs.add('-Dfabric.client.gametest')
+            if (hasClientGameTest) {
+                jvmArgs.add('-Dfabric.client.gametest')
+            } else {
+                jvmArgs.add("-Dtaskmanager.test.address=${project.findProperty('taskmanagerTestAddress') ?: '127.0.0.1:27260'}")
+                programArgs.addAll(['--username', project.findProperty('taskmanagerTestUsername') ?: 'TaskProbe'])
+                programArgs.addAll(['--width', '1600', '--height', '900'])
+            }
             jvmArgs.add("-Dtaskmanager.test.sha512=${project.findProperty('taskmanagerTestSha') ?: ''}")
             jvmArgs.add("-Dtaskmanager.test.minecraft=${mc.minecraft}")
             if (mc.minecraft == '26.3') {
