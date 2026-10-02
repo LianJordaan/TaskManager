@@ -373,6 +373,10 @@ public final class WorkspaceOverlayScreen extends Screen {
                 if (isPanelMinimizeHit(layout, mouseX, mouseY)) {
                     layout.setMinimized(!layout.isMinimized());
                     clampPanelToViewport(hoveredPanel, layout);
+                    if (hoveredPanel == WorkspaceOverlayPanel.EDITOR && layout.isMinimized()
+                        && selectedNote != null && layout.getX() - 24.0F < NOTE_MIN_WIDTH * selectedNote.getScale()) {
+                        parkCompactPanelHeaders(layout);
+                    }
                     positionWidgets();
                     refreshButtonStates();
                     persistOverlayLayout();
@@ -889,21 +893,13 @@ public final class WorkspaceOverlayScreen extends Screen {
         if (available < NOTE_MIN_WIDTH * note.getScale()) {
             // At very narrow widths the editor becomes a separate, reopenable view.
             editor.setMinimized(true);
-            editor.setY(height - PANEL_HEADER_HEIGHT - 8);
-            clampPanelToViewport(WorkspaceOverlayPanel.EDITOR, editor);
-            WorkspaceOverlayLayoutState.PanelLayout settings = panelLayout(WorkspaceOverlayPanel.SETTINGS);
-            int lowestHeaderY = editor.getY();
-            if (settings != null) {
-                settings.setMinimized(true);
-                settings.setY(editor.getY() - PANEL_HEADER_HEIGHT - 6);
-                clampPanelToViewport(WorkspaceOverlayPanel.SETTINGS, settings);
-                lowestHeaderY = settings.getY();
-            }
+            int lowestHeaderY = parkCompactPanelHeaders(editor);
             float noteTop = workspaceTop() + 4.0F;
-            note.setX(12.0F);
+            float noteLeft = SIDEBAR_X + DRAWER_TOGGLE_WIDTH + 14.0F;
+            note.setX(noteLeft);
             note.setY(noteTop);
             note.setWidth(Math.max(NOTE_MIN_WIDTH,
-                Math.min(note.getWidth(), (width - 24.0F) / note.getScale())));
+                Math.min(note.getWidth(), (width - noteLeft - 12.0F) / note.getScale())));
             note.setHeight(Math.max(NOTE_MIN_HEIGHT,
                 Math.min(note.getHeight(), (lowestHeaderY - noteTop - 12.0F) / note.getScale())));
             clampNoteToViewport(note);
@@ -921,6 +917,19 @@ public final class WorkspaceOverlayScreen extends Screen {
         note.setX(Math.max(12.0F, editor.getX() - 12.0F - note.getRenderedWidth()));
         clampNoteToViewport(note);
         return true;
+    }
+
+    private int parkCompactPanelHeaders(WorkspaceOverlayLayoutState.PanelLayout editor) {
+        editor.setY(height - PANEL_HEADER_HEIGHT - 8);
+        clampPanelToViewport(WorkspaceOverlayPanel.EDITOR, editor);
+        WorkspaceOverlayLayoutState.PanelLayout settings = panelLayout(WorkspaceOverlayPanel.SETTINGS);
+        if (settings == null) {
+            return editor.getY();
+        }
+        settings.setMinimized(true);
+        settings.setY(editor.getY() - PANEL_HEADER_HEIGHT - 6);
+        clampPanelToViewport(WorkspaceOverlayPanel.SETTINGS, settings);
+        return settings.getY();
     }
 
     private void selectNote(WorkspaceNote note) {

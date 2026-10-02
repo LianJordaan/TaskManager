@@ -172,6 +172,10 @@ public final class TaskManagerLegacyClientTest implements ClientModInitializer {
                 if (settings != null && !settings.isMinimized()) {
                     throw new AssertionError("Compact settings panel did not minimize");
                 }
+                if (note.getX() < 86 && note.getX() + note.getRenderedWidth() > 8
+                    && note.getY() < 60 && note.getY() + note.getRenderedHeight() > 40) {
+                    throw new AssertionError("Compact task card obscures the Notes drawer toggle");
+                }
                 boolean headerOverlapsCard = note.getX() < editor.getX() + editor.getWidth()
                     && note.getX() + note.getRenderedWidth() > editor.getX()
                     && note.getY() < editor.getY() + 22
@@ -188,15 +192,20 @@ public final class TaskManagerLegacyClientTest implements ClientModInitializer {
                         throw new AssertionError("Compact panel headers collide with the task card or each other");
                     }
                 }
-                double controlX = editor.getX() + 12;
+                double controlX = editor.getX() + editor.getWidth() - 15;
                 double controlY = editor.getY() + 10;
                 client.screen.mouseClicked(controlX, controlY, 0);
                 if (editor.isMinimized()) {
                     throw new AssertionError("The editor could not be reopened on the narrow screen");
                 }
-                client.screen.mouseClicked(controlX, controlY, 0);
+                client.screen.mouseClicked(editor.getX() + editor.getWidth() - 15,
+                    editor.getY() + 10, 0);
                 if (!editor.isMinimized()) {
                     throw new AssertionError("The editor could not be minimized again");
+                }
+                if (settings != null && (note.getY() + note.getRenderedHeight() > settings.getY()
+                    || settings.getY() + 22 > editor.getY())) {
+                    throw new AssertionError("Compact panel headers moved over the task after closing the editor");
                 }
                 System.out.println("TaskManager compact editor reopen PASS: GUI "
                     + client.screen.width + "x" + client.screen.height);
