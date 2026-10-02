@@ -556,15 +556,17 @@ public final class WorkspaceOverlayScreen extends Screen {
             int titleY = 10;
             WorkspaceContext context = workspaceManager.getCurrentContext();
             int firstButtonX = addGlobalButton.getX();
-            int titleWidth = font.width(title.getString());
             int titleMaxWidth = Math.max(0, firstButtonX - titleX - 12);
+            String displayTitle = font.width(title.getString()) > titleMaxWidth
+                ? "Tasks" : title.getString();
+            int titleWidth = font.width(displayTitle);
             if (titleWidth + 14 < titleMaxWidth) {
-                guiGraphics.drawString(font, title, titleX, titleY, 0xFFF5F7FA, false);
+                guiGraphics.drawString(font, Component.literal(displayTitle), titleX, titleY, 0xFFF5F7FA, false);
                 int contextX = titleX + titleWidth + 14;
                 int contextWidth = Math.max(0, firstButtonX - contextX - 10);
                 drawTrimmedString(guiGraphics, context.isAvailable() ? "Global + " + context.getLabel() : "Global workspace", contextX, titleY, contextWidth, 0xFF8FB3C9);
             } else {
-                drawTrimmedString(guiGraphics, title.getString(), titleX, titleY, titleMaxWidth, 0xFFF5F7FA);
+                drawTrimmedString(guiGraphics, displayTitle, titleX, titleY, titleMaxWidth, 0xFFF5F7FA);
             }
         }
 
