@@ -164,8 +164,43 @@ public final class TaskManagerLegacyClientTest implements ClientModInitializer {
             field.setAccessible(true);
             WorkspaceOverlayLayoutState layout = (WorkspaceOverlayLayoutState) field.get(client.screen);
             WorkspaceOverlayLayoutState.PanelLayout editor = layout.getPanel(WorkspaceOverlayPanel.EDITOR);
-            if (editor == null || editor.isMinimized()) {
-                throw new AssertionError("The task editor is unavailable in the UI test");
+            if (editor == null) {
+                throw new AssertionError("The task editor is missing in the UI test");
+            }
+            if (editor.isMinimized()) {
+                WorkspaceOverlayLayoutState.PanelLayout settings = layout.getPanel(WorkspaceOverlayPanel.SETTINGS);
+                if (settings != null && !settings.isMinimized()) {
+                    throw new AssertionError("Compact settings panel did not minimize");
+                }
+                boolean headerOverlapsCard = note.getX() < editor.getX() + editor.getWidth()
+                    && note.getX() + note.getRenderedWidth() > editor.getX()
+                    && note.getY() < editor.getY() + 22
+                    && note.getY() + note.getRenderedHeight() > editor.getY();
+                if (headerOverlapsCard) {
+                    throw new AssertionError("Compact task card obscures the minimized editor control");
+                }
+                if (settings != null) {
+                    boolean settingsOverlapsCard = note.getX() < settings.getX() + settings.getWidth()
+                        && note.getX() + note.getRenderedWidth() > settings.getX()
+                        && note.getY() < settings.getY() + 22
+                        && note.getY() + note.getRenderedHeight() > settings.getY();
+                    if (settingsOverlapsCard || settings.getY() + 22 > editor.getY()) {
+                        throw new AssertionError("Compact panel headers collide with the task card or each other");
+                    }
+                }
+                double controlX = editor.getX() + 12;
+                double controlY = editor.getY() + 10;
+                client.screen.mouseClicked(controlX, controlY, 0);
+                if (editor.isMinimized()) {
+                    throw new AssertionError("The editor could not be reopened on the narrow screen");
+                }
+                client.screen.mouseClicked(controlX, controlY, 0);
+                if (!editor.isMinimized()) {
+                    throw new AssertionError("The editor could not be minimized again");
+                }
+                System.out.println("TaskManager compact editor reopen PASS: GUI "
+                    + client.screen.width + "x" + client.screen.height);
+                return;
             }
             boolean overlap = note.getX() < editor.getX() + editor.getWidth()
                 && note.getX() + note.getRenderedWidth() > editor.getX()

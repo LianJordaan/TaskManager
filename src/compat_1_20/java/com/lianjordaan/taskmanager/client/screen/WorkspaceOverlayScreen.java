@@ -891,7 +891,23 @@ public final class WorkspaceOverlayScreen extends Screen {
             editor.setMinimized(true);
             editor.setY(height - PANEL_HEADER_HEIGHT - 8);
             clampPanelToViewport(WorkspaceOverlayPanel.EDITOR, editor);
-            return false;
+            WorkspaceOverlayLayoutState.PanelLayout settings = panelLayout(WorkspaceOverlayPanel.SETTINGS);
+            int lowestHeaderY = editor.getY();
+            if (settings != null) {
+                settings.setMinimized(true);
+                settings.setY(editor.getY() - PANEL_HEADER_HEIGHT - 6);
+                clampPanelToViewport(WorkspaceOverlayPanel.SETTINGS, settings);
+                lowestHeaderY = settings.getY();
+            }
+            float noteTop = workspaceTop() + 4.0F;
+            note.setX(12.0F);
+            note.setY(noteTop);
+            note.setWidth(Math.max(NOTE_MIN_WIDTH,
+                Math.min(note.getWidth(), (width - 24.0F) / note.getScale())));
+            note.setHeight(Math.max(NOTE_MIN_HEIGHT,
+                Math.min(note.getHeight(), (lowestHeaderY - noteTop - 12.0F) / note.getScale())));
+            clampNoteToViewport(note);
+            return true;
         }
         boolean overlaps = note.getX() + note.getRenderedWidth() > editor.getX() - 12
             && note.getX() < editor.right()
