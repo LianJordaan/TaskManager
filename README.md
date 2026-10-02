@@ -6,11 +6,11 @@ Cards can belong to your **Global** workspace, which follows you everywhere, or 
 
 The **+ Global** and **+ Context** buttons make cards for either scope. The editor opens alongside a new card, with card settings collapsed below it; drag the panel headers or use **Reset UI** to restore this layout.
 
-Version 1.1.0 has passed real-client checks on Fabric for Minecraft **1.21.9, 1.21.10, 1.21.11, 26.1, 26.1.1, 26.1.2, 26.2 and experimental 26.3**. Each check loaded its exact release-candidate JAR in a singleplayer world and exercised the workspace, checkbox saving and HUD. See [the compatibility receipts](docs/TESTING.md) for hashes and test limits. Other compiled targets are not yet verified.
+Version 1.1.0 has passed real-client checks on Fabric for Minecraft **1.21.9, 1.21.10, 1.21.11, 26.1, 26.1.1, 26.1.2, 26.2 and 26.3**. Each check loaded its exact release-candidate JAR in a singleplayer world and exercised the workspace, checkbox saving and HUD. See [the compatibility receipts](docs/TESTING.md) for hashes and test limits. Other compiled targets are not yet verified.
 
 ## Screenshots
 
-These are direct, unedited Minecraft client captures from the live 1.1.0 checks on 1.21.11, 26.2 and experimental 26.3:
+These are direct, unedited Minecraft client captures from the live 1.1.0 checks on 1.21.11, 26.2 and 26.3:
 
 - [Workspace and editor](docs/screenshots/workspace-editor-1.21.11.png)
 - [Checked task](docs/screenshots/task-checked-1.21.11.png)
